@@ -113,6 +113,10 @@
     return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
 
+  function isNarrow() {
+    try { return global.matchMedia('(max-width: 599px)').matches; } catch (error) { return false; }
+  }
+
   function prefersReducedMotion() {
     try { return global.matchMedia('(prefers-reduced-motion: reduce)').matches; }
     catch (error) { return false; }
@@ -196,7 +200,8 @@
         },
         legendTitle: 'วิธีคิดคะแนนความแออัด',
         ranges: ['0–8 คน', '9–24 คน', '25–59 คน', '60–119 คน', '120+ คน'],
-        method: 'คาดจำนวนผู้ส่ง = จำนวนตอนนี้ คูณสัดส่วนเวลาที่ยังเหลือของรอบรับสมัคร · EV ต่อคน = เงินรางวัล ÷ (จำนวนที่คาด + 1) · ' +
+        method: 'คาดจำนวนผู้ส่ง = จำนวนตอนนี้ คูณสัดส่วนเวลาที่ยังเหลือของรอบรับสมัคร (คูณได้สูงสุด 2.5 เท่า) · ' +
+          'EV ต่อคน = เงินรางวัล ÷ (จำนวนที่คาด + 1) · ' +
           'ชุดข้อมูลไม่มีวันที่ประกาศ จึงตั้งรอบรับสมัครไว้ที่ บาวน์ตี้ 21 วัน / โปรเจกต์ 30 วัน / ทุน 45 วัน และใช้ค่านี้กับการเรียง “ลงใหม่ล่าสุด” ด้วย'
       },
       live: {
@@ -301,9 +306,9 @@
         },
         legendTitle: 'How heat is scored',
         ranges: ['0–8', '9–24', '25–59', '60–119', '120+'],
-        method: 'Projected entries = current entries scaled by how much of the window is left. EV = prize pool / (projected + 1). ' +
-          'The snapshot carries no posted-at date, so the window is assumed: 21 days for bounties, 30 for projects, 45 for grants. ' +
-          'The "Newest" sort reads from that same assumption.'
+        method: 'Projected entries = current entries scaled by how much of the window is left, capped at 2.5x. ' +
+          'EV = prize pool / (projected + 1). The snapshot carries no posted-at date, so the window is assumed: ' +
+          '21 days for bounties, 30 for projects, 45 for grants. The "Newest" sort reads from that same assumption.'
       },
       live: {
         button: 'Try live data',
@@ -376,6 +381,10 @@
 
   var WINDOW_DAYS = { bounty: 21, project: 30, grant: 45 };
   var HEAT_BOUNDS = [8, 24, 59, 119];
+  /* The snapshot publishes no posted-at date, so the pace projection is capped. Without a
+     cap a listing whose deadline sits beyond the modelled window has ~no elapsed time and
+     the ratio explodes (9 entries would "project" to 810). 2.5x is the honest ceiling. */
+  var MAX_PROJECTION = 2.5;
 
   /* ------------------------------------------------------------------ *
    * Heat model                                                          *
@@ -409,9 +418,10 @@
       var deadline = deadlineMs(listing);
       var posted = postedMs(listing);
       var subs = Math.max(0, Math.round(num(listing.submissions, 0)));
-      var elapsedDays = Math.max(0.5, (now - posted) / DAY);
+      var elapsedDays = Math.max(1, (now - posted) / DAY);
       var totalDays = Math.max(elapsedDays, (deadline - posted) / DAY);
-      var projected = Math.max(subs, Math.round(subs * (totalDays / elapsedDays)));
+      var ratio = Math.min(MAX_PROJECTION, totalDays / elapsedDays);
+      var projected = Math.max(subs, Math.round(subs * ratio));
       var pool = Math.max(0, num(listing.reward && listing.reward.usd, 0));
       var perDay = subs / elapsedDays;
 
@@ -770,7 +780,8 @@
     var skills = el('ul', 'card__skills');
     var skillChip = el('li', 'card__skill', skillEmoji(listing.skill) + ' ' + skillLabel(listing.skill));
     skills.appendChild(skillChip);
-    var tags = (listing.tags || []).slice(0, 2);
+    /* The design caps the chip row at 2 chips + "+N" on a 360px card, 3 above it. */
+    var tags = (listing.tags || []).slice(0, isNarrow() ? 1 : 2);
     for (var i = 0; i < tags.length; i += 1) { skills.appendChild(el('li', 'card__skill', tags[i])); }
     var extra = (listing.tags || []).length - tags.length;
     if (extra > 0) { skills.appendChild(el('li', 'card__skill', '+' + fmtInt(extra))); }
@@ -1570,6 +1581,7 @@
     list.hidden = visible.length === 0;
 
     placeCalculator();
+    syncStickyOffset();
     refreshCountdowns();
   }
 
@@ -1844,6 +1856,16 @@
     if (main) { main.hidden = true; }
   }
 
+  /* The control bar's height changes with viewport and language, and the sticky rail plus
+     every in-page anchor has to clear it. Measure rather than guess. */
+  function syncStickyOffset() {
+    var header = doc.querySelector('.site-header');
+    var controls = byId('controls');
+    if (!header || !controls) { return; }
+    var total = Math.round(header.getBoundingClientRect().height + controls.getBoundingClientRect().height);
+    if (total > 0) { doc.documentElement.style.setProperty('--stick-top', total + 'px'); }
+  }
+
   function syncLegendOpenState() {
     var legend = byId('legend');
     if (!legend) { return; }
@@ -1887,6 +1909,7 @@
     renderSheetCopy();
     renderCalcEyebrow();
     syncLegendOpenState();
+    syncStickyOffset();
 
     var langRadios = doc.querySelectorAll('#lang-toggle input[type="radio"]');
     for (var i = 0; i < langRadios.length; i += 1) { langRadios[i].checked = langRadios[i].value === state.lang; }
@@ -1911,9 +1934,12 @@
       render();
     });
 
+    var wasNarrow = isNarrow();
     global.addEventListener('resize', function () {
       placeCalculator();
       syncLegendOpenState();
+      syncStickyOffset();
+      if (isNarrow() !== wasNarrow) { wasNarrow = isNarrow(); render(); }
       var host = byId('tabs');
       if (host) { host.classList.toggle('is-scrollable', host.scrollWidth > host.clientWidth + 1); }
       var sheet = byId('sheet');
