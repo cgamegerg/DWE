@@ -1921,10 +1921,19 @@ function qualityGateInner(draft, listing, opts) {
     fail(12, 'listing-id-mismatch', 'listingId "' + draftListingId + '" does not match the listing we scored ("' + listingId + '").');
   }
 
-  if (otherInfo.length < OTHER_INFO_MIN) {
-    fail(12, 'other-info-too-short', 'otherInfo is ' + otherInfo.length + ' characters; the minimum is ' + OTHER_INFO_MIN + '. There is no such thing as reserving a slot.');
+  // Non-whitespace characters, not raw .length: 400 spaces is an empty entry.
+  var otherChars = contentLength(otherInfo);
+  var otherWords = wordsOf(otherInfo).length;
+  var otherUnique = uniqueWordCount(otherInfo);
+  if (otherChars < OTHER_INFO_MIN) {
+    fail(12, 'other-info-too-short', 'otherInfo has ' + otherChars + ' characters of actual content (whitespace does not count); the minimum is ' + OTHER_INFO_MIN + '. There is no such thing as reserving a slot.');
   } else if (otherInfo.length > OTHER_INFO_MAX) {
     fail(12, 'other-info-too-long', 'otherInfo is ' + otherInfo.length + ' characters; the maximum is ' + OTHER_INFO_MAX + '.');
+  } else if (otherWords < OTHER_INFO_MIN_WORDS || otherUnique < OTHER_INFO_MIN_UNIQUE) {
+    // Long enough by character count, but repetitive — padding, not a description.
+    fail(12, 'other-info-filler', 'otherInfo is ' + otherWords + ' word(s) with ' + otherUnique
+      + ' distinct; at least ' + OTHER_INFO_MIN_WORDS + ' words and ' + OTHER_INFO_MIN_UNIQUE
+      + ' distinct are required. Padding a field to clear a length check is an empty submission with extra steps.');
   }
   var prose = checkProse(otherInfo);
   for (i = 0; i < prose.failures.length; i += 1) fail(12, 'other-info-prose', prose.failures[i]);
@@ -1984,6 +1993,13 @@ function qualityGateInner(draft, listing, opts) {
     fail(13, 'signoff-untimed', 'The sign-off has no timestamp.');
   } else if (signAt > now + 60000) {
     fail(13, 'signoff-in-future', 'The sign-off is timestamped in the future.');
+  } else if (now - signAt > SIGNOFF_MAX_AGE_MS) {
+    // Item 3 already refuses a link check older than 15 minutes. A sign-off from
+    // last year attesting to work that changed since is the same defect, and it
+    // is how a stale approval gets reused to wave a new draft through.
+    fail(13, 'signoff-stale', 'The sign-off is '
+      + Math.round((now - signAt) / 3600000) + ' hours old; the maximum is '
+      + Math.round(SIGNOFF_MAX_AGE_MS / 3600000) + '. Re-approve the draft as it stands now.');
   }
 
   /* ---- REFUSAL RULES that are not one of the 13 but block a submission ---------- */
