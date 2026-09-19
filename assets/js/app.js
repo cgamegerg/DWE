@@ -1850,7 +1850,14 @@
     var box = byId('boot-error');
     if (box) {
       box.hidden = false;
-      box.textContent = COPY.th.bootError + missing.join(', ');
+      clear(box);
+      /* Bilingual on purpose: the language toggle lives in the UI that just failed to boot. */
+      var th = el('p', null, COPY.th.bootError + missing.join(', '));
+      th.lang = 'th';
+      var en = el('p', null, COPY.en.bootError + missing.join(', '));
+      en.lang = 'en';
+      box.appendChild(th);
+      box.appendChild(en);
     }
     var main = byId('main');
     if (main) { main.hidden = true; }

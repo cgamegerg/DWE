@@ -223,7 +223,7 @@ function fmtUsd(value) {
   var v = safe(value, 0);
   var abs = Math.abs(v);
   var s;
-  if (abs >= 1000) s = String(Math.round(v));
+  if (v === Math.trunc(v)) s = String(Math.trunc(v));   // "$8", not "$8.00"
   else if (abs >= 10) s = v.toFixed(0);
   else s = v.toFixed(2);
   return '$' + s.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -449,7 +449,24 @@ function computeEV(input) {
  * merely enormous payload cannot hang or explode the scorer.                             *
  * ==================================================================================== */
 
+/** Read one property without trusting the object: getters throw, Proxies trap. */
+function pluck(o, key) {
+  try {
+    return o[key];
+  } catch (e) {
+    return undefined;
+  }
+}
+
 function harvestText(listing) {
+  try {
+    return harvestTextInner(listing);
+  } catch (e) {
+    return '';
+  }
+}
+
+function harvestTextInner(listing) {
   var l = obj(listing);
   var parts = [];
   var budget = { nodes: MAX_WALK_NODES, chars: MAX_TEXT_CHARS };
@@ -494,23 +511,24 @@ function harvestText(listing) {
     }
   }
 
-  push(l.title);
-  push(l.slug);
-  push(l.type);
-  push(l.skill);
-  push(l.region);
-  push(typeof l.sponsor === 'string' ? l.sponsor : obj(l.sponsor).name);
-  push(l.description);
-  push(l.requirements);
-  push(l.brief);
+  push(pluck(l, 'title'));
+  push(pluck(l, 'slug'));
+  push(pluck(l, 'type'));
+  push(pluck(l, 'skill'));
+  push(pluck(l, 'region'));
+  var sp = pluck(l, 'sponsor');
+  push(typeof sp === 'string' ? sp : pluck(obj(sp), 'name'));
+  push(pluck(l, 'description'));
+  walk(pluck(l, 'requirements'), MAX_WALK_DEPTH - 1);
+  push(pluck(l, 'brief'));
 
-  var qs = arr(l.eligibilityQuestions);
+  var qs = arr(pluck(l, 'eligibilityQuestions'));
   for (var qi = 0; qi < qs.length && qi < 200; qi += 1) {
     var q = qs[qi];
-    push(typeof q === 'string' ? q : obj(q).question);
+    push(typeof q === 'string' ? q : pluck(obj(q), 'question'));
   }
 
-  walk(l.raw, 0);
+  walk(pluck(l, 'raw'), 0);
 
   return parts.join(' \n ').toLowerCase().slice(0, MAX_TEXT_CHARS);
 }
@@ -923,30 +941,70 @@ function resolveHours(listing, profile, reasons, assumptions) {
   return guess;
 }
 
-function resolveEntrants(listing, agentAccess, reasons, assumptions) {
+/**
+ * A zero is not the same as a silence, and the feed conflates them: api.js normalises a
+ * missing `_count.Submission` to 0, which is also what a genuinely empty listing reports.
+ * Trusting a 0 sets the field size to 1, which hands the row a ~100% win probability and
+ * makes the engine recommend BUILD on a phantom. So a 0 is treated as unknown by default,
+ * loudly, and the operator can opt out per profile once they have confirmed the count.
+ */
+function resolveEntrants(listing, agentAccess, profile, reasons, assumptions) {
   var raw = numOrNull(obj(listing).submissions);
-  if (raw !== null && raw >= 0) return Math.floor(clamp(raw, 0, MAX_FIELD));
   var guess = agentAccess === 'AGENT_ONLY' ? ASSUMED_ENTRANTS_ONLY : ASSUMED_ENTRANTS_ALLOWED;
+
+  if (raw !== null && raw > 0) return Math.floor(clamp(raw, 0, MAX_FIELD));
+
+  if (raw === 0 && isTrue(obj(profile).trustZeroEntrants)) {
+    reasons.push('the feed reports 0 entrants and the profile says to trust that — scored as an empty field');
+    return 0;
+  }
+
   assumptions.push('assumed-field-size');
-  reasons.push('entrant count not published — assuming ' + guess + ' for ' + (agentAccess || 'an unknown access level'));
+  if (raw === 0) {
+    reasons.push('entrant count reads 0, which is also what the feed returns when it does not publish counts — assuming ' + guess + ' for ' + (agentAccess || 'an unknown access level') + '; set profile.trustZeroEntrants once you have confirmed it');
+  } else {
+    reasons.push('entrant count not published — assuming ' + guess + ' for ' + (agentAccess || 'an unknown access level'));
+  }
   return guess;
 }
 
-function resolvePool(listing) {
+var USD_PEGGED = { USDC: 1, USDT: 1, USD: 1, USDG: 1, PYUSD: 1, EURC: 0 };
+
+/**
+ * The pool in USD. api.js deliberately leaves rewardUsd null for a token it cannot price,
+ * so falling back to the prize amounts means reading token units as dollars. That is done
+ * only as a last resort and it is always flagged, never silent.
+ */
+function resolvePool(listing, reasons, assumptions) {
   var l = obj(listing);
   var pool = num(l.rewardUsd, null);
   if (pool === null) pool = num(obj(l.reward).usd, null);
-  if (pool === null) pool = num(obj(l.reward).amount, null);
-  if (pool === null) {
+  if (pool !== null) return Math.max(0, safe(pool, 0));
+
+  var fallback = num(l.rewardAmount, null);
+  if (fallback === null) fallback = num(obj(l.reward).amount, null);
+  if (fallback === null) {
     var prizes = arr(l.prizes);
     var total = 0;
     for (var i = 0; i < prizes.length && i < MAX_SPLIT; i += 1) {
       var v = num(prizes[i], 0);
       if (v > 0) total += v;
     }
-    pool = total;
+    fallback = total;
   }
-  return Math.max(0, safe(pool, 0));
+  fallback = Math.max(0, safe(fallback, 0));
+
+  if (fallback > 0 && reasons) {
+    var token = str(l.token).trim().toUpperCase();
+    if (token && !USD_PEGGED[token]) {
+      if (assumptions) assumptions.push('assumed-usd-parity');
+      reasons.push('no USD value published and ' + token + ' is not USD-pegged — reading ' + fmtInt(fallback) + ' ' + token + ' as ' + fmtUsd(fallback) + '; price it yourself before you commit');
+    } else if (!token) {
+      if (assumptions) assumptions.push('assumed-usd-parity');
+      reasons.push('no USD value and no token published — reading the prize total as ' + fmtUsd(fallback) + ' at face value');
+    }
+  }
+  return fallback;
 }
 
 function normaliseAccess(listing) {
@@ -1051,8 +1109,8 @@ function scoreListingInner(listing, profile, opts) {
 
   /* ---------------- STEP 1: money core ---------------- */
 
-  var pool = resolvePool(l);
-  var entrants = resolveEntrants(l, access, reasons, assumptions);
+  var pool = resolvePool(l, reasons, assumptions);
+  var entrants = resolveEntrants(l, access, p, reasons, assumptions);
   var hoursEstimate = resolveHours(l, p, reasons, assumptions);
   var edge = resolveEdge(l, p, reasons, assumptions);
   var split = splitFromPrizes(l.prizes, pool);
@@ -1185,7 +1243,7 @@ function scoreListingInner(listing, profile, opts) {
   score = clamp(safe(score, 0), 0, 100);
 
   /* The $8/h floor is a submission-time refusal, not a scoring gate — see the file header. */
-  if (rate < MIN_RATE_USD && pool >= MIN_POOL_USD) {
+  if (rate < MIN_RATE_USD && pool >= MIN_POOL_USD && !gates.length) {
     warnings.push('EV ' + fmtUsd2(rate) + '/h is under the ' + fmtUsd(MIN_RATE_USD) + '/h floor in the refuse list — SPONSOR and VERIFY are carrying this row, and qualityGate will block a submission unless you say why');
   }
   var weekBudget = numOrNull(p.hoursPerWeek);
@@ -1866,7 +1924,7 @@ function qualityGateInner(draft, listing, opts) {
   if (str(d.priorSubmissionId).trim()) {
     fail('R', 'duplicate-create', 'A submission already exists for this listing (' + str(d.priorSubmissionId) + '). The only legal path is POST /api/agents/submissions/update.');
   }
-  var pool = resolvePool(l);
+  var pool = resolvePool(l, null, null);
   if (pool > 0 && pool < MIN_POOL_USD) {
     fail('R', 'micro-value-pool', 'Pool is ' + fmtUsd(pool) + ', under the ' + fmtUsd(MIN_POOL_USD) + ' floor. The submission costs more in sponsor goodwill than it can return.');
   }

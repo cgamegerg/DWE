@@ -369,7 +369,7 @@ h1:lang(th), h2:lang(th), h3:lang(th){ letter-spacing: 0; line-height: 1.42; }
 @media (max-width: 599px){ .site-header .theme-seg{ display: none; } }
 
 .boot-error{
-  margin: var(--sp-6) auto; max-width: var(--maxw);
+  margin: var(--sp-6) auto; max-width: var(--maxw); display: grid; gap: var(--sp-2);
   background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
   color: var(--danger); border-radius: var(--r-md); padding: var(--sp-4) var(--sp-5); font-size: var(--fs-sm);
 }
@@ -558,6 +558,9 @@ h1:lang(th), h2:lang(th), h3:lang(th){ letter-spacing: 0; line-height: 1.42; }
 /* =========================================================================
    BOARD LAYOUT
    ========================================================================= */
+/* The control bar is sticky only while the board is on screen: a sticky element stops
+   at the end of its containing block, so the bar releases before the playbook. */
+.board-shell{ position: relative; }
 .board-section{ padding-block: var(--sp-6) var(--section-y); }
 .board{ display: flex; flex-direction: column; gap: var(--sp-5); }
 .rail{ order: -1; display: grid; gap: var(--sp-4); }
