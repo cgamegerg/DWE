@@ -661,12 +661,24 @@ export function createClient(options = {}) {
   /* 2. DISCOVER                                                            */
   /* ---------------------------------------------------------------------- */
 
-  function toListingArray(body) {
+  function toListingArray(body, endpointLabel) {
     // Both discovery paths return a BARE array. Tolerate an envelope anyway.
     if (Array.isArray(body)) return body;
     if (body && typeof body === 'object') {
       for (const key of ['listings', 'result', 'data', 'items']) {
         if (Array.isArray(body[key])) return body[key];
+      }
+      // parseMaybeJson() parks an unparseable body under `_raw`. A 2xx carrying
+      // HTML (a CDN error page, a captive portal, a proxy interstitial) is NOT
+      // an empty listing set, and reporting it as one made the caller blame
+      // issue #1456 for an infrastructure failure. Say what actually happened.
+      if (typeof body._raw === 'string') {
+        throw new ApiError(
+          `${endpointLabel || 'The listings endpoint'} answered 2xx with a body that is not JSON ` +
+            '(an HTML error page, a proxy interstitial or a captive portal). This is NOT an empty ' +
+            `listing set and NOT ${ISSUE_1456}.`,
+          { status: 200, body, endpoint: endpointLabel || '', code: 'NON_JSON_BODY' },
+        );
       }
     }
     return [];
@@ -692,7 +704,7 @@ export function createClient(options = {}) {
       headers: authHeaders(),
       retry: true,
     });
-    return normaliseAll(toListingArray(result.body));
+    return normaliseAll(toListingArray(result.body, 'GET /api/agents/listings/live'));
   }
 
   /**
@@ -719,15 +731,16 @@ export function createClient(options = {}) {
       // Last-resort tier: the issue's literal workaround, verbatim.
       url.searchParams.set('take', '100');
     }
+    const endpoint = `GET ${trimSlash(host)}/api/listings${useAgentsContext ? '?context=agents' : '?take=100'}`;
     const result = await request({
       method: 'GET',
       url: url.toString(),
-      endpoint: `GET ${trimSlash(host)}/api/listings${useAgentsContext ? '?context=agents' : '?take=100'}`,
+      endpoint,
       // No auth needed; this route reads a human session, not an agent key.
       headers: { accept: 'application/json', 'user-agent': userAgent },
       retry: true,
     });
-    return normaliseAll(toListingArray(result.body));
+    return normaliseAll(toListingArray(result.body, endpoint));
   }
 
   function filterEligible(listings, now) {

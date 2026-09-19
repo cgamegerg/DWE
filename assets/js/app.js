@@ -144,22 +144,30 @@
       langLabel: 'ภาษา',
       theme: { label: 'ธีมสี', light: 'สว่าง', system: 'ตามระบบ', dark: 'มืด' },
       hero: {
-        eyebrow: function (open, date) { return 'เปิดรับอยู่ ' + fmtInt(open) + ' งาน · ข้อมูล ' + date; },
+        eyebrow: function (open, date) { return 'สแนปช็อตนี้: ' + fmtInt(open) + ' งานที่ยังเปิดรับ · เก็บข้อมูล ' + date; },
         h1: 'ดูก่อนว่างานไหน{g}กับสุดสัปดาห์ของคุณ',
         gradWord: 'คุ้ม',
         sub: 'ไม่ต้องยิงทุกงาน — ดูก่อนว่ามีคนแย่งกี่คน แล้วเลือกงานที่ EV ต่อชั่วโมงคุ้มที่สุด',
         subAlt: 'Every listing is scored for crowding before you open it.',
         subAltLang: 'en',
-        counterLabel: 'ยอดจ่ายให้ผู้สร้างสะสม',
+        counterLabel: 'ยอดที่ Superteam Earn จ่ายให้ผู้สร้าง "ทั้งแพลตฟอร์ม" ตั้งแต่เปิดมา',
+        counterReality: 'นี่คือยอดรวมของคนทั้งหมดตลอดหลายปี ไม่ใช่สิ่งที่คุณจะได้ — ' +
+          'คนที่เพิ่งเริ่ม "ส่วนใหญ่ได้ $0 ในเดือนแรก" และเงินเกือบทั้งหมดตกกับคนไม่กี่คนที่ชนะ ' +
+          'หน้านี้มีไว้ช่วยให้คุณเลือกงานที่คุ้มกับเวลา ไม่ใช่รับประกันว่าจะได้เงิน',
         counterSub: function (sponsors, talent, date) {
-          return 'ตัวเลขจากสแนปช็อตวันที่ ' + date + ' · สปอนเซอร์ ' + fmtCount(sponsors) + ' ราย · ผู้สมัคร ' + fmtCount(talent);
+          return 'ตัวเลขโฆษณาที่ Superteam Earn ประกาศเอง ไม่มีการตรวจสอบ เก็บไว้เมื่อ ' + date +
+            ' · สปอนเซอร์ที่สมัครไว้ ' + fmtCount(sponsors) + ' ราย · ผู้สร้างที่สมัครไว้ ' + fmtCount(talent) +
+            ' (จำนวนคนสมัคร ไม่ใช่จำนวนคนที่ได้เงิน)';
         },
         ctaPrimary: 'ไปดูงานจริงที่ Earn',
         ctaSecondary: 'วิธีคิดคะแนนความแออัด',
         ctaNote: 'ปุ่มแรกเปิด superteam.fun/earn ในแท็บใหม่ — หน้านี้เป็นเครื่องมือช่วยคิด ไม่ใช่เว็บทางการ',
         tickerLabel: 'เงินรางวัลของงานในชุดข้อมูลนี้'
       },
-      pills: { open: 'งานที่เปิดรับ', median: 'เงินรางวัลกลาง', ev: 'EV เฉลี่ยต่อคน', talent: 'ผู้สมัครบนแพลตฟอร์ม' },
+      pills: {
+        open: 'เปิดรับ (ในสแนปช็อตนี้)', median: 'เงินรางวัล (มัธยฐานในสแนปช็อตนี้)',
+        ev: 'EV ต่อคน (มัธยฐานในสแนปช็อตนี้)', talent: 'ผู้สร้างที่สมัครไว้ (ทั้งแพลตฟอร์ม)'
+      },
       tabs: { label: 'ประเภทงาน', all: 'ทั้งหมด', bounty: 'บาวน์ตี้', project: 'โปรเจกต์', grant: 'ทุน' },
       filters: {
         searchLabel: 'ค้นหางาน',
@@ -171,6 +179,13 @@
         min500: '$500+', min1k: '$1,000+', min5k: '$5,000+'
       },
       diff: { beginner: 'มือใหม่', intermediate: 'ปานกลาง', advanced: 'ขั้นสูง' },
+      /* Region values in the dataset are English. Translate the ones we ship; anything a live
+         refresh introduces falls back to the raw value rather than showing a blank option. */
+      regionNames: {
+        Global: 'ทั่วโลก', Thailand: 'ไทย', Vietnam: 'เวียดนาม', India: 'อินเดีย',
+        Nigeria: 'ไนจีเรีย', Turkey: 'ตุรกี', Australia: 'ออสเตรเลีย', Canada: 'แคนาดา',
+        Ireland: 'ไอร์แลนด์', Germany: 'เยอรมนี', Brazil: 'บราซิล', Poland: 'โปแลนด์'
+      },
       status: { open: 'เปิดรับ', 'in-review': 'กำลังตัดสิน', completed: 'จบแล้ว' },
       sort: { ev: 'EV ต่อชั่วโมงดีที่สุด', reward: 'เงินรางวัลสูงสุด', deadline: 'ใกล้ปิดรับ', newest: 'ลงใหม่ล่าสุด' },
       result: function (n, ev) { return fmtInt(n) + ' งาน · EV ต่อคน (มัธยฐาน) ' + fmtUsd(ev); },
@@ -185,7 +200,7 @@
       },
       time: {
         left: function (parts) { return 'เหลือ ' + parts; },
-        closed: function (parts) { return 'ปิดแล้ว ' + parts; },
+        closed: function (parts) { return 'ปิดไปแล้ว ' + parts; },
         d: 'วัน', h: 'ชม.', m: 'นาที', ago: '', justClosed: 'ปิดรับแล้ว'
       },
       heat: {
@@ -200,7 +215,7 @@
         },
         legendTitle: 'วิธีคิดคะแนนความแออัด',
         ranges: ['0–8 คน', '9–24 คน', '25–59 คน', '60–119 คน', '120+ คน'],
-        method: 'คาดจำนวนผู้ส่ง = จำนวนตอนนี้ คูณสัดส่วนเวลาที่ยังเหลือของรอบรับสมัคร (คูณได้สูงสุด 2.5 เท่า) · ' +
+        method: 'คาดจำนวนผู้ส่ง = จำนวนตอนนี้ × (ความยาวรอบรับสมัครทั้งหมด ÷ เวลาที่ผ่านไปแล้ว) โดยจำกัดตัวคูณไว้ไม่เกิน 2.5 เท่า · ' +
           'EV ต่อคน = เงินรางวัล ÷ (จำนวนที่คาด + 1) · ' +
           'ชุดข้อมูลไม่มีวันที่ประกาศ จึงตั้งรอบรับสมัครไว้ที่ บาวน์ตี้ 21 วัน / โปรเจกต์ 30 วัน / ทุน 45 วัน และใช้ค่านี้กับการเรียง “ลงใหม่ล่าสุด” ด้วย'
       },
@@ -250,22 +265,31 @@
       langLabel: 'Language',
       theme: { label: 'Colour theme', light: 'Light', system: 'System', dark: 'Dark' },
       hero: {
-        eyebrow: function (open, date) { return fmtInt(open) + ' open · snapshot ' + date; },
+        eyebrow: function (open, date) { return 'This snapshot: ' + fmtInt(open) + ' still open · captured ' + date; },
         h1: 'Find the bounties actually {g} your weekend.',
         gradWord: 'worth',
         sub: 'Do not enter everything. See how many people you are up against, then spend your hours where the EV per hour is highest.',
         subAlt: 'ทุกงานถูกให้คะแนนความแออัดก่อนคุณจะกดเข้าไปดู',
         subAltLang: 'th',
-        counterLabel: 'Paid out to builders · all time',
+        counterLabel: 'Paid out by Superteam Earn to ALL builders, all time',
+        counterReality: 'That is everyone, over years — it is not what you will make. ' +
+          'Most people earn $0 in their first month, and most of this money went to the ' +
+          'few entrants who won. This page exists to help you pick listings worth your ' +
+          'hours; it does not promise you any of it.',
         counterSub: function (sponsors, talent, date) {
-          return 'as published in the ' + date + ' snapshot · ' + fmtCount(sponsors) + ' sponsors · ' + fmtCount(talent) + ' builders';
+          return "Superteam Earn's own marketing figures, unaudited, captured " + date + ' · ' +
+            fmtCount(sponsors) + ' sponsors signed up · ' + fmtCount(talent) +
+            ' builders signed up (sign-ups, not people who got paid)';
         },
         ctaPrimary: 'Browse open listings',
         ctaSecondary: 'How heat is scored',
         ctaNote: 'The first button opens superteam.fun/earn in a new tab — this page is an independent scoring tool, not the official site.',
         tickerLabel: 'Prize pools in this snapshot'
       },
-      pills: { open: 'Open listings', median: 'Median reward', ev: 'Avg EV / entry', talent: 'Builders on platform' },
+      pills: {
+        open: 'Open in this snapshot', median: 'Median reward in snapshot',
+        ev: 'Median EV / entry in snapshot', talent: 'Builders signed up (platform)'
+      },
       tabs: { label: 'Listing type', all: 'All', bounty: 'Bounties', project: 'Projects', grant: 'Grants' },
       filters: {
         searchLabel: 'Search listings',
@@ -277,6 +301,7 @@
         min500: '$500+', min1k: '$1,000+', min5k: '$5,000+'
       },
       diff: { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' },
+      regionNames: {},
       status: { open: 'Open', 'in-review': 'In review', completed: 'Completed' },
       sort: { ev: 'Best $/hour (EV)', reward: 'Highest reward', deadline: 'Closing soon', newest: 'Newest' },
       result: function (n, ev) { return fmtInt(n) + ' listings · median EV ' + fmtUsd(ev) + ' / entry'; },
@@ -306,7 +331,7 @@
         },
         legendTitle: 'How heat is scored',
         ranges: ['0–8', '9–24', '25–59', '60–119', '120+'],
-        method: 'Projected entries = current entries scaled by how much of the window is left, capped at 2.5x. ' +
+        method: 'Projected entries = current entries × (the whole assumed window ÷ the time elapsed so far), with that multiplier capped at 2.5x. ' +
           'EV = prize pool / (projected + 1). The snapshot carries no posted-at date, so the window is assumed: ' +
           '21 days for bounties, 30 for projects, 45 for grants. The "Newest" sort reads from that same assumption.'
       },
@@ -513,30 +538,52 @@
    * ------------------------------------------------------------------ */
 
   var HASH_KEYS = ['type', 'q', 'skills', 'min', 'region', 'difficulty', 'status', 'token', 'crowded', 'sort'];
+  var SORT_KEYS = ['ev', 'newest', 'reward', 'deadline'];
+  var DIFFICULTIES = ['beginner', 'intermediate', 'advanced'];
+  var STATUSES = ['open', 'in-review', 'completed'];
 
   function readHash() {
     var raw = String(global.location.hash || '').replace(/^#/, '');
     if (!raw || raw.indexOf('=') < 0) { return; }
     var parts = raw.split('&');
     var found = {};
+    var hits = 0;
     for (var i = 0; i < parts.length; i += 1) {
       var pair = parts[i].split('=');
       var key = decodeURIComponent(pair[0] || '');
       if (HASH_KEYS.indexOf(key) < 0) { continue; }
       found[key] = decodeURIComponent((pair[1] || '').replace(/\+/g, ' '));
+      hits += 1;
     }
+    /* A hash that carries filter keys is authoritative: whatever it leaves out goes back to
+       its default, so the URL and the board can never disagree. Bare anchors (#playbook,
+       #listings) carry no '=' and returned above, so they never clear anyone's filters. */
+    if (!hits) { return; }
+    state.type = DEFAULTS.type;
+    state.q = DEFAULTS.q;
+    state.skills = [];
+    state.min = DEFAULTS.min;
+    state.region = DEFAULTS.region;
+    state.difficulty = DEFAULTS.difficulty;
+    state.status = DEFAULTS.status;
+    state.token = DEFAULTS.token;
+    state.sort = DEFAULTS.sort;
+
     if (found.type && ['all', 'bounty', 'project', 'grant'].indexOf(found.type) >= 0) { state.type = found.type; }
     if (typeof found.q === 'string') { state.q = found.q.slice(0, 120); }
     if (found.skills) {
       state.skills = found.skills.split(',').filter(function (id) { return skillIds().indexOf(id) >= 0; });
     }
     if (found.min) { state.min = Math.max(0, num(found.min, 0)); }
+    /* region and token are open sets — a live refresh can introduce values the seed never had. */
     if (found.region) { state.region = found.region; }
-    if (found.difficulty) { state.difficulty = found.difficulty; }
-    if (found.status) { state.status = found.status; }
     if (found.token) { state.token = found.token; }
+    /* difficulty, status and sort are closed enums. indexOf, not a property lookup: a bare
+       `COPY.en.sort[key]` test passes for prototype keys like "constructor". */
+    if (found.difficulty && DIFFICULTIES.indexOf(found.difficulty) >= 0) { state.difficulty = found.difficulty; }
+    if (found.status && STATUSES.indexOf(found.status) >= 0) { state.status = found.status; }
+    if (found.sort && SORT_KEYS.indexOf(found.sort) >= 0) { state.sort = found.sort; }
     state.hideCrowded = found.crowded === 'hide';
-    if (found.sort && COPY.en.sort[found.sort]) { state.sort = found.sort; }
   }
 
   function writeHash() {
@@ -579,6 +626,12 @@
     return out;
   }
 
+  /** Region names ship as English strings in the dataset; the Thai UI needs Thai labels. */
+  function regionLabel(value) {
+    var names = t().regionNames || {};
+    return names[value] || value;
+  }
+
   function skillLabel(id) {
     var skills = (DATA && DATA.skills) || [];
     for (var i = 0; i < skills.length; i += 1) {
@@ -601,8 +654,9 @@
 
   function matchesQuery(listing, needle) {
     if (!needle) { return true; }
-    var hay = (listing.title + ' ' + (listing.sponsor && listing.sponsor.name) + ' ' +
-      (listing.sponsor && listing.sponsor.handle) + ' ' + (listing.tags || []).join(' ')).toLowerCase();
+    var sponsor = listing.sponsor || {};
+    var hay = (listing.title + ' ' + (sponsor.name || '') + ' ' +
+      (sponsor.handle || '') + ' ' + (listing.tags || []).join(' ')).toLowerCase();
     return hay.indexOf(needle) >= 0;
   }
 
@@ -647,9 +701,11 @@
 
     /* Best $/hour — the whole point of the app. EarnCalculator owns the maths. */
     if (!CALC || typeof CALC.rankListings !== 'function') { return sorted; }
+    /* skillEdge 1.0 = "no better than the average entrant". This board's audience is new by
+       definition, so the default ranking must not quietly assume an edge they have not shown. */
     var ranked = CALC.rankListings(sorted, {
       skills: state.skills,
-      skillEdge: 1.5,
+      skillEdge: 1,
       hoursAvailable: 0
     });
     var order = [];
@@ -668,10 +724,6 @@
   /* ------------------------------------------------------------------ *
    * Card rendering                                                      *
    * ------------------------------------------------------------------ */
-
-  var TICK_SVG = '<svg class="card__tick" viewBox="0 0 12 12" aria-hidden="true" focusable="false">' +
-    '<path d="M6 .8 7.5 2.4l2.2-.2.2 2.2L11.2 6 9.9 7.6l-.2 2.2-2.2-.2L6 11.2 4.5 9.6l-2.2.2-.2-2.2L.8 6l1.3-1.6.2-2.2 2.2.2z" fill="currentColor" opacity=".18"/>' +
-    '<path d="M4.1 6.1 5.4 7.4l2.6-2.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   function initials(name) {
     var words = String(name || '?').trim().split(/\s+/).slice(0, 2);
@@ -729,7 +781,7 @@
     evBtn.setAttribute('aria-label', copy.card.evAria(heat.evPerEntry, listing.title));
     evBtn.appendChild(el('span', 'label-micro', copy.card.ev));
     evBtn.appendChild(el('span', 'num', fmtUsd(heat.evPerEntry)));
-    evBtn.addEventListener('click', function () { prefillCalculator(listing, heat); });
+    evBtn.addEventListener('click', function () { prefillCalculator(listing); });
     strip.appendChild(evBtn);
 
     return strip;
@@ -768,13 +820,10 @@
 
     var sponsor = el('p', 'card__sponsor');
     sponsor.appendChild(el('span', 'card__sponsor-name', (listing.sponsor && listing.sponsor.name) || ''));
-    if (listing.sponsor && listing.sponsor.verified) {
-      var tick = doc.createElement('span');
-      tick.innerHTML = TICK_SVG;   /* static, authored here — no data in this string */
-      sponsor.appendChild(tick.firstChild);
-    }
+    /* No verification tick. The snapshot never checked Earn's sponsor-verification state, so
+       the page has no basis to vouch for a sponsor and must not draw a trust mark. */
     sponsor.appendChild(el('span', 'card__meta',
-      '· ' + listing.region + ' · ' + copy.card.hours(listing.estimatedHours)));
+      '· ' + regionLabel(listing.region) + ' · ' + copy.card.hours(listing.estimatedHours)));
     body.appendChild(sponsor);
 
     var skills = el('ul', 'card__skills');
@@ -842,9 +891,13 @@
     node.appendChild(btn);
   }
 
-  function prefillCalculator(listing, heat) {
+  /* Loads the listing's OWN published numbers. It must not substitute heat.projected here:
+     the submissions field is documented to the reader as "the Submissions count on the
+     listing", and the calculator's "use these numbers" button fills that same actual count.
+     Two controls that claim to load one listing have to load the same listing. */
+  function prefillCalculator(listing) {
     var ok = setCalcInput('prizeUsd', Math.round(num(listing.reward.usd, 0)));
-    setCalcInput('submissions', heat.projected);
+    setCalcInput('submissions', Math.max(0, Math.floor(num(listing.submissions, 0))));
     setCalcInput('hours', listing.estimatedHours);
     if (!ok) { return; }
     prefilled = listing;
@@ -918,6 +971,9 @@
     if (alt) { alt.lang = copy.hero.subAltLang; }
 
     setText('counter-label', copy.hero.counterLabel);
+    /* The base rate sits with the number it qualifies. Moving it further down the page is how
+       a lifetime platform total ends up reading as a personal forecast. */
+    setText('counter-reality', copy.hero.counterReality);
     setText('counter-sub', copy.hero.counterSub(stats.sponsors, stats.talent, (DATA && DATA.generatedAt) || ''));
 
     var pills = byId('hero-pills');
@@ -958,9 +1014,10 @@
 
     function item(listing) {
       var node = el('span', 'ticker__item');
+      var sponsor = listing.sponsor || {};
+      var credit = sponsor.handle || sponsor.name || '';
       node.appendChild(el('b', null, fmtUsd(listing.reward.usd)));
-      node.appendChild(doc.createTextNode(' — ' + listing.title + ' · ' +
-        ((listing.sponsor && listing.sponsor.handle) || '')));
+      node.appendChild(doc.createTextNode(' — ' + listing.title + (credit ? ' · ' + credit : '')));
       return node;
     }
 
@@ -1138,15 +1195,15 @@
     if (selects) {
       clear(selects);
       selects.appendChild(buildSelect('region', regionOptions()));
-      selects.appendChild(buildSelect('difficulty', ['beginner', 'intermediate', 'advanced']));
-      selects.appendChild(buildSelect('status', ['open', 'in-review', 'completed']));
+      selects.appendChild(buildSelect('difficulty', DIFFICULTIES));
+      selects.appendChild(buildSelect('status', STATUSES));
       selects.appendChild(buildSelect('token', tokenOptions()));
     }
 
     var sort = byId('sort');
     if (sort) {
       clear(sort);
-      var sorts = ['ev', 'newest', 'reward', 'deadline'];
+      var sorts = SORT_KEYS;
       for (var s = 0; s < sorts.length; s += 1) {
         var opt = doc.createElement('option');
         opt.value = sorts[s];
@@ -1222,12 +1279,22 @@
     if (value === 'all') { return copy.filters[key]; }
     if (key === 'difficulty') { return copy.diff[value] || value; }
     if (key === 'status') { return copy.status[value] || value; }
+    if (key === 'region') { return regionLabel(value); }
     return value;
   }
 
   function paintFilters() {
     var copy = t();
     var i, nodes;
+
+    /* The search box is built once but its placeholder is language-dependent, and a language
+       switch only re-paints — it never rebuilds the filter bar. Re-paint the two localised
+       attributes here or the placeholder stays in whichever language booted the page. */
+    var searchBox = byId('q');
+    if (searchBox) {
+      searchBox.placeholder = copy.filters.searchPlaceholder;
+      searchBox.setAttribute('lang', copy.htmlLang);
+    }
 
     nodes = doc.querySelectorAll('#chips-skill .chip');
     for (i = 0; i < nodes.length; i += 1) {
@@ -1422,12 +1489,23 @@
 
   /* ---- footer ---- */
 
+  /** meta.sourceNotes ships as { th, en }; tolerate an older plain-string dataset. */
+  function sourceNotesText() {
+    var notes = DATA && DATA.meta && DATA.meta.sourceNotes;
+    if (!notes) { return ''; }
+    if (typeof notes === 'string') { return notes; }
+    return notes[state.lang] || notes.en || notes.th || '';
+  }
+
   function renderFooter() {
     var copy = t();
     setText('footer-blurb', copy.footer.blurb);
     setText('footer-meta', copy.footer.meta(allListings.length, (DATA && DATA.generatedAt) || ''));
     setText('footer-copy', copy.footer.copy);
     setText('footer-disclaimer', copy.footer.disclaimer);
+    /* EARN_DATA.meta.sourceNotes qualifies every statistic the page prints. It is reader-facing
+       and bilingual; leaving it unrendered puts unaudited figures on screen bare. */
+    setText('footer-sources', sourceNotesText());
 
     fillFooterList('footer-browse', [
       { label: copy.tabs.all, action: function () { state.type = 'all'; } },
@@ -1506,7 +1584,7 @@
       (function (id) { active.push({ label: skillLabel(id), off: function () { state.skills.splice(state.skills.indexOf(id), 1); } }); }(state.skills[i]));
     }
     if (state.min) { active.push({ label: fmtUsd(state.min) + '+', off: function () { state.min = 0; } }); }
-    if (state.region !== 'all') { active.push({ label: state.region, off: function () { state.region = 'all'; } }); }
+    if (state.region !== 'all') { active.push({ label: regionLabel(state.region), off: function () { state.region = 'all'; } }); }
     if (state.difficulty !== 'all') { active.push({ label: optionLabel('difficulty', state.difficulty), off: function () { state.difficulty = 'all'; } }); }
     if (state.status !== 'all') { active.push({ label: optionLabel('status', state.status), off: function () { state.status = 'all'; } }); }
     if (state.token !== 'all') { active.push({ label: state.token, off: function () { state.token = 'all'; } }); }
@@ -1726,6 +1804,10 @@
     buildHeatIndex(allListings);
     buildFilters();
     renderHero();
+    /* mountCalculator rebuilds the panel from scratch, so its inputs go back to the defaults.
+       Drop the prefill marker with them — otherwise the eyebrow keeps claiming "From: <listing>"
+       above numbers that no longer belong to that listing. */
+    prefilled = null;
     mountCalculator(viewData());
     renderCalcEyebrow();
     render();

@@ -294,6 +294,10 @@ var SPONSOR_GHOSTED = -0.35;
 var OTHER_INFO_MIN = 400;
 var OTHER_INFO_MAX = 1500;
 var ANSWER_MIN_CHARS = 40;
+var ANSWER_MIN_WORDS = 6;          // 40 chars of one repeated letter is not an answer
+var OTHER_INFO_MIN_WORDS = 60;     // ~400 chars of real prose is well over this
+var OTHER_INFO_MIN_UNIQUE = 30;    // filler repeats itself; a real description does not
+var SIGNOFF_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 var LINK_CHECK_MAX_AGE_MS = 15 * 60 * 1000;
 var README_MAX_SECONDS = 120;
 var MIN_COMMITS = 3;
@@ -334,6 +338,23 @@ function normaliseSplit(input) {
 }
 
 /**
+ * One podium entry -> its amount. Accepts BOTH shapes this codebase produces:
+ * a bare number, and the `{ position, amount }` row that api.js normalisePrizes()
+ * emits for every listing that came from the details endpoint. Reading the object
+ * as a number used to yield 0, which silently collapsed every published podium to
+ * winner-take-all and understated podiumProb by ~5x.
+ */
+function prizeAmount(entry) {
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    var a = num(entry.amount, null);
+    if (a === null) a = num(entry.value, null);
+    if (a === null) a = num(entry.usd, 0);
+    return a;
+  }
+  return num(entry, 0);
+}
+
+/**
  * Derive prize-pool fractions from a published podium. Dividing by the POOL rather than
  * the podium sum is deliberate: if a sponsor advertises $3,000 but lists $2,500 of prizes,
  * the missing $500 is money nobody can win, and the shares should sum to 0.833.
@@ -344,7 +365,7 @@ function splitFromPrizes(prizes, poolUsd) {
   var total = 0;
   var i, v, out, denom;
   for (i = 0; i < raw.length && amounts.length < MAX_SPLIT; i += 1) {
-    v = num(raw[i], 0);
+    v = prizeAmount(raw[i]);
     if (!isFinite(v)) v = 0;
     if (v > 0) { amounts.push(v); total += v; }
   }
@@ -987,7 +1008,7 @@ function resolvePool(listing, reasons, assumptions) {
     var prizes = arr(l.prizes);
     var total = 0;
     for (var i = 0; i < prizes.length && i < MAX_SPLIT; i += 1) {
-      var v = num(prizes[i], 0);
+      var v = prizeAmount(prizes[i]);
       if (v > 0) total += v;
     }
     fallback = total;
@@ -1505,6 +1526,16 @@ function urlProblems(value, label) {
   if (TUNNEL_HOSTS.test(u.host)) {
     out.push(label + ' is a tunnel URL (' + u.host + ') — tunnels die and a dead link is worse than no submission');
   }
+  // `https://a` parses as a URL and used to sail through. A judge needs a host
+  // that actually resolves: a dotted name with a real TLD, or a literal IP.
+  var isIpv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(u.host);
+  var isIpv6 = u.host.indexOf('[') === 0;
+  if (!isIpv4 && !isIpv6 && !/\.[a-z]{2,}$/i.test(u.host)) {
+    out.push(label + ' has no resolvable host ("' + u.host + '" has no TLD) — a judge cannot open it');
+  }
+  if (PLACEHOLDER_HOSTS.test(u.host)) {
+    out.push(label + ' points at the placeholder domain ' + u.host + ' — that is a template value, not your work');
+  }
   return out;
 }
 
@@ -1519,6 +1550,34 @@ function normQuestion(q) {
 }
 
 var PLACEHOLDER_ANSWER = /^(n\/?a|na|tbd|todo|none|-{1,3}|\.|test|wip|xxx+|lorem ipsum.*)$/i;
+
+/**
+ * Length checks that count whitespace are not length checks. `' '.repeat(400)`
+ * and `'a'.repeat(450)` both cleared the old minimums, which is exactly the
+ * "obviously empty entry" the gate exists to refuse. Everything below measures
+ * SUBSTANCE: non-whitespace characters, words, and distinct words.
+ */
+function contentLength(text) {
+  return str(text).replace(/\s+/g, '').length;
+}
+
+function wordsOf(text) {
+  var m = str(text).toLowerCase().match(/[a-z0-9฀-๿][a-z0-9'’฀-๿-]*/g);
+  return m || [];
+}
+
+function uniqueWordCount(text) {
+  var words = wordsOf(text);
+  var seen = {};
+  var n = 0;
+  for (var i = 0; i < words.length; i += 1) {
+    if (!seen[words[i]]) { seen[words[i]] = true; n += 1; }
+  }
+  return n;
+}
+
+/** Reserved/placeholder domains nobody can actually demo on (RFC 2606 + friends). */
+var PLACEHOLDER_HOSTS = /(^|\.)(example\.(com|org|net|edu)|test|invalid|localdomain|yourdomain\.com|mysite\.com|foo\.bar)$/i;
 
 /**
  * qualityGate(draft, listing, opts) -> { pass, failures: [], warnings: [] }
@@ -1637,12 +1696,19 @@ function qualityGateInner(draft, listing, opts) {
       fail(2, 'answer-placeholder', 'Answer to "' + qLabel.slice(0, 60) + '" is a placeholder ("' + trimmed.slice(0, 20) + '").');
       continue;
     }
-    if (trimmed.length < ANSWER_MIN_CHARS) {
+    // Measure substance, not keystrokes: whitespace and one repeated letter
+    // both used to clear this minimum.
+    var ansChars = contentLength(trimmed);
+    if (ansChars < ANSWER_MIN_CHARS) {
       if (/^n\/?a\b/i.test(trimmed)) {
         fail(2, 'answer-na-unexplained', 'Answer to "' + qLabel.slice(0, 60) + '" is N/A without saying why. If it genuinely does not apply, say so in at least ' + ANSWER_MIN_CHARS + ' characters.');
       } else {
-        fail(2, 'answer-too-short', 'Answer to "' + qLabel.slice(0, 60) + '" is ' + trimmed.length + ' characters; the minimum is ' + ANSWER_MIN_CHARS + '.');
+        fail(2, 'answer-too-short', 'Answer to "' + qLabel.slice(0, 60) + '" is ' + ansChars + ' characters of actual content; the minimum is ' + ANSWER_MIN_CHARS + '.');
       }
+      continue;
+    }
+    if (wordsOf(trimmed).length < ANSWER_MIN_WORDS) {
+      fail(2, 'answer-not-prose', 'Answer to "' + qLabel.slice(0, 60) + '" is ' + wordsOf(trimmed).length + ' word(s). Padding is not an answer; write at least ' + ANSWER_MIN_WORDS + ' words.', trimmed.slice(0, 40));
     }
   }
   for (i = 0; i < answers.length && i < 500; i += 1) {

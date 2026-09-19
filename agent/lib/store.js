@@ -24,6 +24,16 @@ const CONFIG_BASENAME = '.earn-agent.json';
 const FILE_MODE = 0o600;
 const DIR_MODE = 0o700;
 
+/**
+ * Named `.earn-agent.json.lock` on purpose: the `agent/.earn-agent.json.*`
+ * .gitignore rule then covers it with no extra entry.
+ */
+const LOCK_BASENAME = `${CONFIG_BASENAME}.lock`;
+/** A lock older than this belonged to a process that died. Steal it. */
+const LOCK_STALE_MS = 120000;
+/** How long a caller waits for a sibling process before giving up. */
+const LOCK_WAIT_MS = 10000;
+
 /** Bump when the on-disk shape changes so a future load() can migrate. */
 export const STATE_VERSION = 1;
 
@@ -44,6 +54,11 @@ export function agentDir() {
 /** @returns {string} absolute path to agent/.earn-agent.json */
 export function configPath() {
   return path.join(agentDir(), CONFIG_BASENAME);
+}
+
+/** @returns {string} absolute path to the cross-process submission lock */
+export function lockPath() {
+  return path.join(agentDir(), LOCK_BASENAME);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -158,6 +173,10 @@ function coerceSubmissions(raw) {
         typeof entry.date === 'string'
           ? entry.date
           : localDateKey(entry.submittedAt) || null,
+      // A reservation taken before the POST. It counts against the cap and the
+      // duplicate guard from the moment it is written, which is the whole point.
+      pending: entry.pending === true,
+      reservationId: typeof entry.reservationId === 'string' ? entry.reservationId : null,
     });
   }
   return out;
@@ -318,6 +337,89 @@ export function save(state) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Cross-process lock                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Raised when a rate limit refuses a reservation. Carries a machine-readable
+ * `code` so the CLI can print the right message without string-matching.
+ */
+export class LimitError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'LimitError';
+    this.code = code; // DUPLICATE | DAILY_CAP | NO_PRIOR | UPDATE_CAP | LOCK_BUSY
+    this.details = details;
+  }
+}
+
+/** Synchronous sleep. Node permits Atomics.wait on the main thread. */
+function sleepSync(ms) {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { /* spin — only ever a few ms */ }
+  }
+}
+
+/**
+ * Run `fn` while holding an exclusive, cross-process lock.
+ *
+ * WHY THIS EXISTS: the duplicate guard and the daily cap are read-then-write.
+ * Without a lock, `submit A & submit B & submit C &` has every process read
+ * the same ledger, every process see the cap as free, and every one POST — and
+ * the last save() silently clobbers the others' rows. Three submissions, one
+ * cap slot spent, two ledger rows. That is a spam cannon, so the check and the
+ * write have to be one atomic step.
+ *
+ * `fn` MUST be synchronous: the lock is deliberately never held across a
+ * network call, so a hung request cannot wedge every other process.
+ */
+export function withLock(fn, opts = {}) {
+  const file = lockPath();
+  ensureDir(path.dirname(file));
+  const waitMs = Number.isFinite(opts.waitMs) ? opts.waitMs : LOCK_WAIT_MS;
+  const staleMs = Number.isFinite(opts.staleMs) ? opts.staleMs : LOCK_STALE_MS;
+  const deadline = Date.now() + waitMs;
+
+  let fd;
+  for (;;) {
+    try {
+      fd = fs.openSync(file, 'wx', FILE_MODE);
+      break;
+    } catch (err) {
+      if (!err || err.code !== 'EEXIST') throw err;
+
+      // Steal a lock whose owner died without releasing it.
+      let age = null;
+      try { age = Date.now() - fs.statSync(file).mtimeMs; } catch { age = null; }
+      if (age === null || age > staleMs) {
+        try { fs.unlinkSync(file); continue; } catch { /* someone beat us to it */ }
+      }
+
+      if (Date.now() >= deadline) {
+        throw new LimitError(
+          'LOCK_BUSY',
+          `Another earn-agent process is mid-submission (lock held at ${file}). ` +
+            'Refusing rather than racing it. Wait for that run to finish; do not run submits in parallel.',
+          { lockPath: file },
+        );
+      }
+      sleepSync(40);
+    }
+  }
+
+  try {
+    try { fs.writeSync(fd, `${process.pid}\n`); } catch { /* advisory only */ }
+    return fn();
+  } finally {
+    try { fs.closeSync(fd); } catch { /* best effort */ }
+    try { fs.unlinkSync(file); } catch { /* best effort */ }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* Submission ledger                                                           */
 /* -------------------------------------------------------------------------- */
 
@@ -348,6 +450,126 @@ export function recordSubmission(entry) {
   state.submissions.push(record);
   save(state);
   return record;
+}
+
+/** Updates recorded for one listing today — the update command's own ceiling. */
+export function updatesTodayFor(listingId, state) {
+  const s = state && Array.isArray(state.submissions) ? state : load();
+  const today = localDateKey();
+  return s.submissions.filter(
+    (entry) => entry.listingId === listingId
+      && entry.mode === 'update'
+      && (entry.date || localDateKey(entry.submittedAt)) === today,
+  ).length;
+}
+
+/**
+ * Claim a submission slot BEFORE the POST goes out, atomically.
+ *
+ * This is the enforcement point for both hard limits. The pre-flight checks the
+ * CLI runs earlier are courtesy: they give a good error message before the
+ * operator writes a draft. By the time the request is about to leave, minutes
+ * may have passed and a sibling process may have spent the budget, so the
+ * check is redone here, inside the lock, in the same step as the write.
+ *
+ * Throws {@link LimitError} instead of returning a flag so no caller can
+ * forget to look at the result.
+ *
+ * @returns {object} the pending ledger record (carries `reservationId`)
+ */
+export function reserveSubmission(entry) {
+  if (!entry || typeof entry !== 'object' || typeof entry.listingId !== 'string' || entry.listingId.trim() === '') {
+    throw new TypeError('reserveSubmission requires an object with a non-empty string listingId');
+  }
+  const listingId = entry.listingId;
+  const mode = entry.mode === 'update' ? 'update' : 'create';
+
+  return withLock(() => {
+    const state = load();
+    const cap =
+      typeof state.dailyCap === 'number' && Number.isFinite(state.dailyCap)
+        ? state.dailyCap
+        : DEFAULT_DAILY_CAP;
+
+    if (mode === 'create') {
+      const prior = findSubmission(listingId, state);
+      if (hasSubmittedTo(listingId, state)) {
+        throw new LimitError('DUPLICATE', `Already submitted to ${listingId}`, { prior, listingId });
+      }
+      const used = submittedToday(state);
+      if (used >= cap) {
+        throw new LimitError('DAILY_CAP', `Daily cap reached (${used}/${cap})`, { used, cap });
+      }
+    } else {
+      if (!hasSubmittedTo(listingId, state)) {
+        throw new LimitError('NO_PRIOR', `No prior submission to ${listingId}`, { listingId });
+      }
+      const used = updatesTodayFor(listingId, state);
+      if (used >= cap) {
+        throw new LimitError('UPDATE_CAP', `Update ceiling reached (${used}/${cap})`, { used, cap });
+      }
+    }
+
+    const now = new Date();
+    const record = {
+      listingId,
+      listingTitle: typeof entry.listingTitle === 'string' ? entry.listingTitle : null,
+      slug: typeof entry.slug === 'string' ? entry.slug : null,
+      submissionId: null,
+      link: typeof entry.link === 'string' ? entry.link : null,
+      mode,
+      submittedAt: now.toISOString(),
+      date: localDateKey(now),
+      pending: true,
+      reservationId: `${process.pid}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+    };
+    state.submissions.push(record);
+    save(state);
+    return record;
+  });
+}
+
+/** Mark a reservation as really sent. @returns {object|null} the row */
+export function finalizeSubmission(reservationId, patch = {}) {
+  if (typeof reservationId !== 'string' || reservationId === '') return null;
+  return withLock(() => {
+    const state = load();
+    const row = state.submissions.find((s) => s.reservationId === reservationId);
+    if (!row) return null;
+    row.pending = false;
+    if (typeof patch.submissionId === 'string') row.submissionId = patch.submissionId;
+    if (typeof patch.link === 'string') row.link = patch.link;
+    save(state);
+    return row;
+  });
+}
+
+/**
+ * Give a reservation back. ONLY for a failure that definitely created nothing
+ * server-side. After an ambiguous failure (timeout, dropped connection, 5xx)
+ * the row must STAY: the submission may exist, and re-sending a create the API
+ * cannot deduplicate is exactly the harm the ledger is here to prevent.
+ *
+ * @returns {boolean} true if a pending row was removed
+ */
+export function releaseReservation(reservationId) {
+  if (typeof reservationId !== 'string' || reservationId === '') return false;
+  return withLock(() => {
+    const state = load();
+    const i = state.submissions.findIndex(
+      (s) => s.reservationId === reservationId && s.pending === true,
+    );
+    if (i === -1) return false;
+    state.submissions.splice(i, 1);
+    save(state);
+    return true;
+  });
+}
+
+/** Reservations that were never finalised — a POST whose outcome is unknown. */
+export function pendingSubmissions(state) {
+  const s = state && Array.isArray(state.submissions) ? state : load();
+  return s.submissions.filter((entry) => entry.pending === true);
 }
 
 /** Submissions (creates only) recorded for today, local time. */
@@ -402,18 +624,27 @@ export function describe(state) {
     submittedToday: submittedToday(s),
     remainingToday: remainingToday(s),
     totalSubmissions: s.submissions.length,
+    pendingSubmissions: pendingSubmissions(s).length,
     warnings: (s._meta && s._meta.warnings) || [],
   };
 }
 
 export default {
   configPath,
+  lockPath,
   agentDir,
   load,
   save,
   maskKey,
   maskClaimCode,
+  withLock,
+  LimitError,
   recordSubmission,
+  reserveSubmission,
+  finalizeSubmission,
+  releaseReservation,
+  pendingSubmissions,
+  updatesTodayFor,
   submittedToday,
   hasSubmittedTo,
   findSubmission,

@@ -25,7 +25,7 @@
 window.EARN_PLAYBOOK = {
   "th": {
     "title": "หาเงินจริงบน Superteam Earn: คู่มือแบบไม่ขายฝัน",
-    "subtitle": "แผนที่ทำได้จริงสำหรับคนไทยที่เพิ่งเจอ superteam.fun/earn — มีตัวเลข มีข้อจำกัด และไม่มีการการันตีรายได้ครับ",
+    "subtitle": "แผนงานที่ทำได้จริงสำหรับคนไทยที่เพิ่งเจอ superteam.fun/earn — มีตัวเลข มีข้อจำกัด และไม่มีการการันตีรายได้ครับ",
     "steps": [
       {
         "n": 1,
@@ -35,7 +35,7 @@ window.EARN_PLAYBOOK = {
       {
         "n": 2,
         "title": "ตั้ง wallet Solana และเตรียมเอกสาร KYC ตั้งแต่วันแรก",
-        "body": "ติดตั้ง Phantom, Solflare หรือ Backpack สร้าง wallet เก็บ seed phrase ไว้ออฟไลน์ และห้ามส่งให้ใครเด็ดขาดแม้จะอ้างว่าเป็นทีมงาน จากนั้นใส่ address ลงในโปรไฟล์ Earn รางวัลส่วนใหญ่จ่ายเป็น USDC บน Solana เช็ค address ซ้ำสองรอบเพราะโอนผิดคือหายถาวร และเตรียมพาสปอร์ตหรือบัตรประชาชนไว้ด้วย เพราะ listing ที่ Superteam หรือ Solana Foundation เป็นสปอนเซอร์ต้องผ่าน KYC ก่อนโอน ชื่อในเอกสารต้องตรงกับชื่อที่กรอกไว้"
+        "body": "ติดตั้ง Phantom, Solflare หรือ Backpack สร้าง wallet เก็บ seed phrase ไว้ออฟไลน์ และห้ามส่งให้ใครเด็ดขาดแม้จะอ้างว่าเป็นทีมงาน จากนั้นใส่ address ลงในโปรไฟล์ Earn รางวัลจ่ายเป็นสเตเบิลคอยน์บน Solana ส่วนใหญ่เป็น USDC หรือ USDG เช็ค address ซ้ำสองรอบเพราะโอนผิดคือหายถาวร และเตรียมพาสปอร์ตหรือบัตรประชาชนไว้ด้วย เพราะ listing ที่ Superteam หรือ Solana Foundation เป็นสปอนเซอร์ต้องผ่าน KYC ก่อนโอน ชื่อในเอกสารต้องตรงกับชื่อที่กรอกไว้"
       },
       {
         "n": 3,
@@ -133,7 +133,7 @@ window.EARN_PLAYBOOK = {
       },
       {
         "title": "ใช้ความได้เปรียบเรื่องภาษาและ timezone ของคนไทย",
-        "body": "งาน localization ภาษาไทย, ทำ docs หรือ tutorial ภาษาไทย, จัด community call ภาษาไทย, จัด meetup ในกรุงเทพฯ — พวกนี้คู่แข่งมักมีแค่หลักหน่วยถึงหลักสิบ เทียบกับ bounty ภาษาอังกฤษที่ต้องชนกับอินเดียและเวียดนามทั้งทวีป และการอยู่ UTC+7 ทำให้คุณทำงานเสร็จตอนที่ทีมฝั่ง US เพิ่งตื่น ถ้า listing เปิดตอนเช้าเวลาไทย คุณมีเวลาเกือบทั้งวันก่อนคู่แข่งฝั่งตะวันตกจะเริ่มด้วยซ้ำ",
+        "body": "งาน localization ภาษาไทย, ทำ docs หรือ tutorial ภาษาไทย, จัด community call ภาษาไทย, จัด meetup ในกรุงเทพฯ — พวกนี้คู่แข่งมักมีแค่หลักหน่วยถึงหลักสิบ เทียบกับ bounty ภาษาอังกฤษที่ต้องชนกับคนทั้งอินเดียและเวียดนาม และการอยู่ UTC+7 ทำให้คุณทำงานเสร็จตอนที่ทีมฝั่ง US เพิ่งตื่น ถ้า listing เปิดตอนเช้าเวลาไทย คุณมีเวลาเกือบทั้งวันก่อนคู่แข่งฝั่งตะวันตกจะเริ่มด้วยซ้ำ",
         "tags": [
           "ไทย",
           "localization",
@@ -191,7 +191,7 @@ window.EARN_PLAYBOOK = {
       },
       {
         "q": "ได้เงินเร็วแค่ไหน?",
-        "a": "ไม่ใช่วันเดียวแน่นอนครับ ลำดับคือ ปิดรับ → sponsor ตัดสิน (ไม่กี่วันถึงหลายสัปดาห์) → ประกาศผล → คุณกรอก payment form และ KYC ถ้าเข้าเงื่อนไข → โอนจริง ซึ่งปกติราว 7 วันหลังกรอกฟอร์ม และช้ากว่านั้นได้ถ้า sponsor ช้า จ่ายเป็น USDC เข้า wallet Solana ที่คุณใส่ไว้ อย่าวางแผนเอาเงินก้อนนี้ไปจ่ายค่าเช่าเดือนนี้"
+        "a": "ไม่ใช่วันเดียวแน่นอนครับ ลำดับคือ ปิดรับ → sponsor ตัดสิน (ไม่กี่วันถึงหลายสัปดาห์) → ประกาศผล → คุณกรอก payment form และ KYC ถ้าเข้าเงื่อนไข → โอนจริง ซึ่งปกติราว 7 วันหลังกรอกฟอร์ม และช้ากว่านั้นได้ถ้า sponsor ช้า จ่ายเป็นสเตเบิลคอยน์ (USDC หรือ USDG) เข้า wallet Solana ที่คุณใส่ไว้ อย่าวางแผนเอาเงินก้อนนี้ไปจ่ายค่าเช่าเดือนนี้"
       },
       {
         "q": "ต้องทำ KYC ไหม?",
@@ -231,7 +231,7 @@ window.EARN_PLAYBOOK = {
       {
         "n": 2,
         "title": "Set up a Solana wallet and get your KYC documents ready on day one",
-        "body": "Install Phantom, Solflare or Backpack, create a wallet, keep the seed phrase offline, and never send it to anyone — not even someone claiming to be from the team. Put the address in your Earn profile. Most rewards pay in USDC on Solana; check the address twice, because a wrong transfer is gone permanently. Also have your passport or national ID ready: listings sponsored by Superteam or the Solana Foundation require KYC before payout, and the name on the document must match the name you entered."
+        "body": "Install Phantom, Solflare or Backpack, create a wallet, keep the seed phrase offline, and never send it to anyone — not even someone claiming to be from the team. Put the address in your Earn profile. Rewards pay in dollar stablecoins on Solana — usually USDC or USDG; check the address twice, because a wrong transfer is gone permanently. Also have your passport or national ID ready: listings sponsored by Superteam or the Solana Foundation require KYC before payout, and the name on the document must match the name you entered."
       },
       {
         "n": 3,
@@ -387,7 +387,7 @@ window.EARN_PLAYBOOK = {
       },
       {
         "q": "How fast do I get paid?",
-        "a": "Not the same day. The sequence is: submissions close → sponsor judges (a few days to several weeks) → winners announced → you fill the payment form and KYC if it applies → the transfer, which typically takes around 7 days after the form, and longer if the sponsor is slow. Payment is USDC to the Solana wallet on your profile. Don't plan to pay this month's rent with it."
+        "a": "Not the same day. The sequence is: submissions close → sponsor judges (a few days to several weeks) → winners announced → you fill the payment form and KYC if it applies → the transfer, which typically takes around 7 days after the form, and longer if the sponsor is slow. Payment is a dollar stablecoin — USDC or USDG — to the Solana wallet on your profile. Don't plan to pay this month's rent with it."
       },
       {
         "q": "Do I need KYC?",

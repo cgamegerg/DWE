@@ -238,6 +238,10 @@
       expectedUsd: expectedUsd,
       expectedPerHour: expectedPerHour,
       breakEvenRate: expectedPerHour,
+      /* The field size this result was actually computed from, AFTER flooring, the 0-to-1
+         floor and the MAX_FIELD ceiling. Display this, never the raw input: a read-out that
+         echoes an unclamped entry states a number the model did not use. */
+      field: field,
       verdict: verdict,
       notes: notes
     };
@@ -530,7 +534,9 @@
       prizeUsd: 1000,
       submissions: 60,
       hours: 8,
-      skillEdge: 1.5,
+      /* 1.0 = the panel's own definition of "same as everyone else". Opening at 1.5 hands a
+         first-time reader a ~48% uplift they have not earned, in the first number they see. */
+      skillEdge: 1,
       splitId: 's601515'
     };
 
@@ -828,7 +834,7 @@
       });
 
       fields.prizeUsd.value.textContent = fmtUsd(state.prizeUsd);
-      fields.submissions.value.textContent = fmtInt(state.submissions) + ' ' + t.subsUnit;
+      fields.submissions.value.textContent = fmtInt(ev.field) + ' ' + t.subsUnit;
       fields.hours.value.textContent = fmtHours(state.hours) + ' ' + t.hoursUnit;
       fields.skillEdge.value.textContent = intlNumber(edge, 1, 1) + '×';
 

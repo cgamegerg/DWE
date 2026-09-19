@@ -2,54 +2,80 @@
  * data.js — seed dataset + optional live refresh for the Superteam Earn playbook app.
  *
  * Loads as a classic <script> (no modules, no imports, works over file://) and attaches:
- *   window.EARN_DATA  — generatedAt, stats, skills, regions, listings[35], meta
+ *   window.EARN_DATA  — generatedAt, stats, skills, regions, listings[26], meta
  *   window.EarnLive   — ENDPOINT, fetchListings(opts), normalise(raw), audit(listings)
  *
  * PROVENANCE
  *   Captured 2026-09-19 from rendered Superteam Earn pages (search-result extracts).
  *   No structured/public API was reachable, so nothing here came from a JSON endpoint.
- *   Listings l01-l24 carry real slugs and therefore resolve to real
- *   https://superteam.fun/earn/listing/<slug> pages. l31 (agentic-engineering grants page)
- *   and l35 (Kora beginner challenge) were also verified live. The remaining nine rows
- *   (l25-l30, l32-l34) are modelled: their `slug` values LOOK real but are invented, so
- *   their `url` deliberately points at https://superteam.fun/earn/all and nothing 404s.
+ *   EVERY row carries a real slug and resolves to a real Superteam Earn page. An earlier
+ *   revision also shipped nine invented listings (l25-l30, l32-l34) whose slugs only LOOKED
+ *   real and whose url pointed at /earn/all; they were attributed to real organisations
+ *   (Jupiter, Superteam Thailand/India/Nigeria/Australia/Canada/Vietnam) with invented prize
+ *   pools and submission counts. They have been deleted. Do not reintroduce a modelled row:
+ *   this dataset is rendered as an opportunity board, so a row a reader cannot open and check
+ *   is a false claim about a named organisation, however it is captioned.
  *   >>> Consumers must READ listing.url. Never rebuild a URL from listing.slug. <<<
+ *
+ * ACCURACY — READ THIS BEFORE TRUSTING A NUMBER
+ *   No row was ever checked against Superteam Earn's own sponsor-verification state, so the
+ *   dataset does NOT carry a `sponsor.verified` flag and the UI must not render a trust tick.
+ *   `sponsor.handle` is present only where the social handle was actually seen on the source
+ *   page; it is absent, not guessed, everywhere else.
+ *   Listing fields go stale fast — submissions climb daily and a status flips to
+ *   'in-review'/'completed' the moment a deadline passes. meta.sourceNotes carries the
+ *   qualifications a reader needs and app.js RENDERS IT; do not let it fall out of the page.
  *
  * CURRENCY
  *   Every row is denominated in USDC or USDG (both dollar stablecoins), so
  *   reward.usd === reward.amount everywhere and no SOL price assumption is baked in.
  *
- * SUBMISSION-COUNT MODEL (so it can be tuned, not re-guessed)
- *   Anchored on scraped real counts: 375 (beginner content thread), 153 (LMS dApp build),
- *   110 (creator bounty), 22 (written piece), 11 (advanced Rust bounty), plus 9/9/17/20/21/24/33
- *   across Pro-tier rows. Beginner content/growth lands 80-400 and rises with prize size;
- *   intermediate work lands 20-130; advanced development lands 3-25 almost regardless of prize.
- *   That gap is the whole point of the app (compare l13: 10,000 USDC / 19 entries against
- *   l14: 500 USDC / 214 entries). Projects and grants draw applications, not submissions: 20-60.
- *   The tags 'thin-competition', 'crowded', 'low-effort' and 'good-entry-point' encode this
- *   signal directly and are safe to filter on.
+ * SUBMISSION COUNTS
+ *   Counts come from the "Submissions<N>" string on the rendered listing page. The spread is
+ *   the whole point of the app: advanced development draws single digits while beginner
+ *   content draws hundreds (compare l13: 20,000 USDC / 57 entries against
+ *   l14: 1,500 USDC / 353 entries). The tags 'thin-competition', 'crowded', 'low-effort' and
+ *   'good-entry-point' encode that signal and are safe to filter on — but a tag is only as
+ *   fresh as the count it was derived from.
  *
- * FIXES APPLIED TO THE RESEARCHED SEED (every deviation is listed here)
- *   1. Grants (l17, l31, l33) had prizes [7100] / [10000] / [5000]. The contract says grants
- *      carry an empty podium, so prizes is now [] for all three. reward.amount is unchanged.
+ * CORRECTIONS APPLIED TO THE RESEARCHED SEED (every deviation is listed here)
+ *   1. Grants (l17, l31) had prizes [7100] / [10000]. The contract says grants carry an empty
+ *      podium, so prizes is now [] for both. reward.amount is unchanged.
  *   2. stats.sourceNotes (a long string) was sitting inside the numeric `stats` object, where a
  *      naive Object.entries(stats) stat-card render would print it as a broken tile. Moved
  *      verbatim to EARN_DATA.meta.sourceNotes; `stats` now holds exactly the four numbers.
- *   3. regions dropped 'Brazil' and 'Poland' — no listing uses either, so they were filter
- *      options guaranteed to return zero rows.
+ *   3. regions lists only regions a surviving listing actually uses — anything else is a filter
+ *      option guaranteed to return zero rows.
  *   4. l17's title carried a stale parenthetical, "(Applications by March 7th)", which
  *      contradicted its own deadline field (2026-11-14). The parenthetical is dropped from the
  *      display title; slug and url are untouched and still resolve to the real page.
- *   No number in the seed was altered.
+ *   5. Re-checked against the live listing pages, these rows were WRONG and are now corrected:
+ *        l02 castledao-content-challenge — sponsor is Superteam Ireland (/earn/s/superteamie),
+ *            not "CastleDAO"; the listing has expired, so status is 'completed', not 'open'.
+ *        l13 layerzero-solana-breakout-track — pool is 20,000 USDC (10,000/7,000/2,500 plus
+ *            100 x5), 57 submissions, Winners Announced. Was 10,000 / [5000,3000,2000] / 19 / open.
+ *        l14 post-why-flint-beats-building-your-own-prop-amm — pool is 1,500 USDC
+ *            (750/500/250), 353 submissions, Submissions in Review. Was 500 / [250,150,100] /
+ *            214 / open. Flint's handle is @flint_trade_, not @flint.
+ *        l16 show-the-world-solara-content-seeker-dapp-reviews-1 — sponsor is Solara Lotto
+ *            (/earn/s/solara-lotto), not "Solara".
+ *        l20 steve-agent-arena-... — sponsor is OOBE Protocol (/earn/s/oobeprotocol). "Steve"
+ *            is the product in the title, not the sponsor.
+ *        l21 summitvideos — sponsored by Goatfish, not Superteam Vietnam.
+ *        l23 trade-tweet-and-earn-1 — sponsor is Spectrumfi, pool 500 USDC (250/150/100), and
+ *            it has 9 submissions. Was WOOFi / 2,000 USDC / 187, i.e. the app was calling a
+ *            wide-open bounty 'crowded' and telling the reader the opposite of the truth.
+ *      The rows not listed here were not re-checked and may be stale in the same way.
  *
  * A live refresh may introduce a region the seed filter has never seen — EarnLive.audit() checks
  * Listing shape only, so a consumer merging live rows should union listing.region into its filter.
  *
  * IF YOU GO LIVE
- *   The highest-value fields to refresh are `submissions` and `deadline` — the premise of the app
- *   rests on them and both are modelled here. On a rendered listing page submissions appear as a
- *   bare "Submissions<N>" string and deadlines only as a relative countdown ("Due in 4d"), so an
- *   absolute deadline must be computed at scrape time. Closed listings show "Winners Announced".
+ *   The highest-value fields to refresh are `submissions`, `status` and `deadline` — the premise
+ *   of the app rests on them and all three decay. On a rendered listing page submissions appear
+ *   as a bare "Submissions<N>" string and deadlines only as a relative countdown ("Due in 4d"),
+ *   so an absolute deadline must be computed at scrape time. Closed listings show
+ *   "Winners Announced"; ones past deadline but undecided show "Submissions in Review".
  */
 (function (global) {
   'use strict';
@@ -108,8 +134,7 @@
 
   /* Only regions that at least one listing uses — an empty filter option reads as a broken app. */
   var REGIONS = [
-    'Global', 'Thailand', 'Vietnam', 'India', 'Nigeria',
-    'Turkey', 'Australia', 'Canada', 'Ireland', 'Germany'
+    'Global', 'Ireland', 'Germany', 'Turkey', 'Canada', 'Vietnam'
   ];
 
   var LISTINGS = [
@@ -118,7 +143,7 @@
       title: 'Adrena x Autonom Trading Competition: Design & Development',
       slug: 'adrena-x-autonom-trading-competition-design-and-development-1',
       url: 'https://superteam.fun/earn/listing/adrena-x-autonom-trading-competition-design-and-development-1',
-      sponsor: { name: 'Superteam Ireland', handle: '@superteamie', verified: true },
+      sponsor: { name: 'Superteam Ireland', handle: '@superteamie' },
       type: 'bounty',
       skill: 'development',
       reward: { amount: 5000, token: 'USDC', usd: 5000 },
@@ -136,14 +161,14 @@
       title: 'CastleDAO Content Challenge',
       slug: 'castledao-content-challenge',
       url: 'https://superteam.fun/earn/listing/castledao-content-challenge',
-      sponsor: { name: 'CastleDAO', handle: '@CastleDAO', verified: true },
+      sponsor: { name: 'Superteam Ireland', handle: '@superteamIE' },
       type: 'bounty',
       skill: 'content',
       reward: { amount: 1000, token: 'USDC', usd: 1000 },
       prizes: [500, 300, 200],
       submissions: 152,
       deadline: '2026-09-26',
-      status: 'open',
+      status: 'completed',
       region: 'Global',
       difficulty: 'beginner',
       estimatedHours: 5,
@@ -154,7 +179,7 @@
       title: 'Create a Short Video Explainer for Hisa — $5,000 Up For Grabs',
       slug: 'create-a-short-video-explainer-for-hisa-dollar5000-up-for-grabs',
       url: 'https://superteam.fun/earn/listing/create-a-short-video-explainer-for-hisa-dollar5000-up-for-grabs',
-      sponsor: { name: 'Hisa', handle: '@HisaFinance', verified: true },
+      sponsor: { name: 'Hisa', handle: '@HisaFinance' },
       type: 'bounty',
       skill: 'content',
       reward: { amount: 5000, token: 'USDC', usd: 5000 },
@@ -172,7 +197,7 @@
       title: 'Create an App on Cookie Chain',
       slug: 'create-an-app-on-cookie-chain-app',
       url: 'https://superteam.fun/earn/listing/create-an-app-on-cookie-chain-app',
-      sponsor: { name: 'Cookie Chain', handle: '@cookiedotfun', verified: true },
+      sponsor: { name: 'Cookie Chain', handle: '@cookiedotfun' },
       type: 'bounty',
       skill: 'development',
       reward: { amount: 2500, token: 'USDC', usd: 2500 },
@@ -190,7 +215,7 @@
       title: 'Create Content for Breakpoint 2026',
       slug: 'create-content-for-breakpoint-2026',
       url: 'https://superteam.fun/earn/listing/create-content-for-breakpoint-2026',
-      sponsor: { name: 'Superteam', handle: '@SuperteamDAO', verified: true },
+      sponsor: { name: 'Superteam', handle: '@SuperteamDAO' },
       type: 'bounty',
       skill: 'content',
       reward: { amount: 8000, token: 'USDG', usd: 8000 },
@@ -208,7 +233,7 @@
       title: 'Create Content on Top Projects',
       slug: 'create-content-on-top-projects',
       url: 'https://superteam.fun/earn/listing/create-content-on-top-projects',
-      sponsor: { name: 'Superteam Germany', handle: '@SuperteamDE', verified: true },
+      sponsor: { name: 'Superteam Germany', handle: '@SuperteamDE' },
       type: 'bounty',
       skill: 'content',
       reward: { amount: 4500, token: 'USDG', usd: 4500 },
@@ -226,7 +251,7 @@
       title: "Design a T-Shirt for Superteam Türkiye Inspired by Colosseum's Crypto World's Fair",
       slug: 'design-a-t-shirt-for-superteam-turkiye-inspired-by-colosseumcrypto-worlds-fair',
       url: 'https://superteam.fun/earn/listing/design-a-t-shirt-for-superteam-turkiye-inspired-by-colosseumcrypto-worlds-fair',
-      sponsor: { name: 'Superteam Turkey', handle: '@superteamtr', verified: true },
+      sponsor: { name: 'Superteam Turkey', handle: '@superteamtr' },
       type: 'bounty',
       skill: 'design',
       reward: { amount: 750, token: 'USDC', usd: 750 },
@@ -244,7 +269,7 @@
       title: 'Design the Superteam Hall of Fame',
       slug: 'design-superteam-hall-of-fame',
       url: 'https://superteam.fun/earn/listing/design-superteam-hall-of-fame',
-      sponsor: { name: 'Superteam', handle: '@SuperteamDAO', verified: true },
+      sponsor: { name: 'Superteam', handle: '@SuperteamDAO' },
       type: 'project',
       skill: 'design',
       reward: { amount: 1000, token: 'USDC', usd: 1000 },
@@ -262,7 +287,7 @@
       title: 'Develop an Analytics Platform for Xandeum pNodes',
       slug: 'develop-analytics-platform-for-xandeum-pnodes',
       url: 'https://superteam.fun/earn/listing/develop-analytics-platform-for-xandeum-pnodes',
-      sponsor: { name: 'Xandeum', handle: '@XandeumNetwork', verified: true },
+      sponsor: { name: 'Xandeum', handle: '@XandeumNetwork' },
       type: 'bounty',
       skill: 'development',
       reward: { amount: 2500, token: 'USDC', usd: 2500 },
@@ -280,7 +305,7 @@
       title: '$1,000 USDC Manic Bug Bounty',
       slug: 'dollar1000-usdc-manic-bug-bounty',
       url: 'https://superteam.fun/earn/listing/dollar1000-usdc-manic-bug-bounty',
-      sponsor: { name: 'Manic', handle: '@manic', verified: true },
+      sponsor: { name: 'Manic', handle: '@manic' },
       type: 'bounty',
       skill: 'development',
       reward: { amount: 1000, token: 'USDC', usd: 1000 },
@@ -298,7 +323,7 @@
       title: 'Ideathon: Submit Innovative Ideas for the Hackathon',
       slug: 'ideathon-submit-innovative-ideas-for-the-hackathon',
       url: 'https://superteam.fun/earn/listing/ideathon-submit-innovative-ideas-for-the-hackathon',
-      sponsor: { name: 'Superteam', handle: '@SuperteamDAO', verified: true },
+      sponsor: { name: 'Superteam', handle: '@SuperteamDAO' },
       type: 'bounty',
       skill: 'other',
       reward: { amount: 2000, token: 'USDG', usd: 2000 },
@@ -316,7 +341,7 @@
       title: 'Kriptok League: Trading Experience Bounty',
       slug: 'kriptok-league-trading-experience-bounty',
       url: 'https://superteam.fun/earn/listing/kriptok-league-trading-experience-bounty',
-      sponsor: { name: 'Kriptok', handle: '@kriptok', verified: true },
+      sponsor: { name: 'Kriptok', handle: '@kriptok' },
       type: 'bounty',
       skill: 'growth',
       reward: { amount: 2000, token: 'USDC', usd: 2000 },
@@ -334,32 +359,32 @@
       title: 'LayerZero Solana Breakout Track',
       slug: 'layerzero-solana-breakout-track',
       url: 'https://superteam.fun/earn/listing/layerzero-solana-breakout-track',
-      sponsor: { name: 'LayerZero', handle: '@LayerZero_Core', verified: true },
+      sponsor: { name: 'LayerZero', handle: '@LayerZero_Core' },
       type: 'bounty',
       skill: 'development',
-      reward: { amount: 10000, token: 'USDC', usd: 10000 },
-      prizes: [5000, 3000, 2000],
-      submissions: 19,
+      reward: { amount: 20000, token: 'USDC', usd: 20000 },
+      prizes: [10000, 7000, 2500, 100, 100, 100, 100, 100],
+      submissions: 57,
       deadline: '2026-11-14',
-      status: 'open',
+      status: 'completed',
       region: 'Global',
       difficulty: 'advanced',
       estimatedHours: 60,
-      tags: ['hackathon-track', 'interop', 'rust', 'anchor', 'big-prize', 'thin-competition']
+      tags: ['hackathon-track', 'interop', 'rust', 'anchor', 'big-prize']
     },
     {
       id: 'l14',
       title: 'Post: Why Flint Beats Building Your Own Prop AMM',
       slug: 'post-why-flint-beats-building-your-own-prop-amm',
       url: 'https://superteam.fun/earn/listing/post-why-flint-beats-building-your-own-prop-amm',
-      sponsor: { name: 'Flint', handle: '@flint', verified: true },
+      sponsor: { name: 'Flint', handle: '@flint_trade_' },
       type: 'bounty',
       skill: 'content',
-      reward: { amount: 500, token: 'USDC', usd: 500 },
-      prizes: [250, 150, 100],
-      submissions: 214,
+      reward: { amount: 1500, token: 'USDC', usd: 1500 },
+      prizes: [750, 500, 250],
+      submissions: 353,
       deadline: '2026-09-21',
-      status: 'open',
+      status: 'in-review',
       region: 'Global',
       difficulty: 'beginner',
       estimatedHours: 3,
@@ -370,7 +395,7 @@
       title: 'Road to Colosseum Hackathon: Build Your MVP',
       slug: 'road-to-colosseum-hackathon-build-your-mvp',
       url: 'https://superteam.fun/earn/listing/road-to-colosseum-hackathon-build-your-mvp',
-      sponsor: { name: 'Superteam', handle: '@SuperteamDAO', verified: true },
+      sponsor: { name: 'Superteam', handle: '@SuperteamDAO' },
       type: 'bounty',
       skill: 'development',
       reward: { amount: 7000, token: 'USDG', usd: 7000 },
@@ -388,7 +413,7 @@
       title: 'Show the World: Solara Content — Seeker dApp Reviews',
       slug: 'show-the-world-solara-content-seeker-dapp-reviews-1',
       url: 'https://superteam.fun/earn/listing/show-the-world-solara-content-seeker-dapp-reviews-1',
-      sponsor: { name: 'Solara', handle: '@solara', verified: true },
+      sponsor: { name: 'Solara Lotto' },
       type: 'bounty',
       skill: 'content',
       reward: { amount: 1000, token: 'USDC', usd: 1000 },
@@ -406,7 +431,7 @@
       title: 'Solana Audit Subsidy Program — Cohort VI',
       slug: 'solana-audit-subsidy-program-cohort-vi-applications-by-march-7th-1',
       url: 'https://superteam.fun/earn/listing/solana-audit-subsidy-program-cohort-vi-applications-by-march-7th-1',
-      sponsor: { name: 'Areta', handle: '@areta', verified: true },
+      sponsor: { name: 'Areta', handle: '@areta' },
       type: 'grant',
       skill: 'development',
       reward: { amount: 7100, token: 'USDC', usd: 7100 },
@@ -424,7 +449,7 @@
       title: 'Solana Socials 101',
       slug: 'solana-socials-101',
       url: 'https://superteam.fun/earn/listing/solana-socials-101',
-      sponsor: { name: 'Superteam', handle: '@SuperteamEarn', verified: true },
+      sponsor: { name: 'Superteam', handle: '@SuperteamEarn' },
       type: 'bounty',
       skill: 'growth',
       reward: { amount: 4000, token: 'USDC', usd: 4000 },
@@ -442,7 +467,7 @@
       title: 'Solana Summit Canada Creator Challenge (Part 1)',
       slug: 'solana-summit-canada-creator-challenge-part-1',
       url: 'https://superteam.fun/earn/listing/solana-summit-canada-creator-challenge-part-1',
-      sponsor: { name: 'Superteam Canada', handle: '@SuperteamCAN', verified: true },
+      sponsor: { name: 'Superteam Canada', handle: '@SuperteamCAN' },
       type: 'bounty',
       skill: 'content',
       reward: { amount: 2000, token: 'USDG', usd: 2000 },
@@ -460,7 +485,7 @@
       title: 'Steve Agent Arena: Launch Your Agent and Win 500 USDC',
       slug: 'steve-agent-arena-launch-your-agent-and-win-500-usdc',
       url: 'https://superteam.fun/earn/listing/steve-agent-arena-launch-your-agent-and-win-500-usdc',
-      sponsor: { name: 'Steve', handle: '@steve', verified: true },
+      sponsor: { name: 'OOBE Protocol' },
       type: 'bounty',
       skill: 'development',
       reward: { amount: 500, token: 'USDC', usd: 500 },
@@ -478,7 +503,7 @@
       title: 'Summit Videos',
       slug: 'summitvideos',
       url: 'https://superteam.fun/earn/listing/summitvideos',
-      sponsor: { name: 'Superteam Vietnam', handle: '@superteamvn', verified: true },
+      sponsor: { name: 'Goatfish' },
       type: 'bounty',
       skill: 'content',
       reward: { amount: 1500, token: 'USDC', usd: 1500 },
@@ -496,7 +521,7 @@
       title: 'Develop a Telegram Bot for Superteam Earn Notifications',
       slug: 'telegram-bot-for-earn',
       url: 'https://superteam.fun/earn/listing/telegram-bot-for-earn',
-      sponsor: { name: 'Superteam Earn', handle: '@SuperteamEarn', verified: true },
+      sponsor: { name: 'Superteam Earn', handle: '@SuperteamEarn' },
       type: 'project',
       skill: 'development',
       reward: { amount: 2500, token: 'USDC', usd: 2500 },
@@ -511,28 +536,28 @@
     },
     {
       id: 'l23',
-      title: 'Trade, Tweet and Earn',
+      title: 'Trade, Tweet & Earn',
       slug: 'trade-tweet-and-earn-1',
       url: 'https://superteam.fun/earn/listing/trade-tweet-and-earn-1',
-      sponsor: { name: 'WOOFi', handle: '@_WOOFi', verified: true },
+      sponsor: { name: 'Spectrumfi' },
       type: 'bounty',
       skill: 'growth',
-      reward: { amount: 2000, token: 'USDC', usd: 2000 },
-      prizes: [800, 500, 300, 200, 200],
-      submissions: 187,
+      reward: { amount: 500, token: 'USDC', usd: 500 },
+      prizes: [250, 150, 100],
+      submissions: 9,
       deadline: '2026-09-22',
       status: 'open',
       region: 'Global',
       difficulty: 'beginner',
       estimatedHours: 3,
-      tags: ['trading', 'twitter', 'campaign', 'crowded', 'closing-soon', 'low-effort']
+      tags: ['trading', 'twitter', 'campaign', 'thin-competition', 'closing-soon', 'low-effort']
     },
     {
       id: 'l24',
       title: 'Video Recap of the Solana Ecosystem in 2025',
       slug: 'video-recap-of-the-solana-ecosystem-in-2025',
       url: 'https://superteam.fun/earn/listing/video-recap-of-the-solana-ecosystem-in-2025',
-      sponsor: { name: 'Superteam', handle: '@SuperteamDAO', verified: true },
+      sponsor: { name: 'Superteam', handle: '@SuperteamDAO' },
       type: 'bounty',
       skill: 'content',
       reward: { amount: 2500, token: 'USDC', usd: 2500 },
@@ -546,119 +571,11 @@
       tags: ['video', 'recap', 'editing', 'research']
     },
     {
-      id: 'l25',
-      title: 'Write an X Thread Explaining Aeonian Trade',
-      slug: 'write-an-x-thread-explaining-aeonian-trade',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Aeonian', handle: '@aeonian', verified: true },
-      type: 'bounty',
-      skill: 'content',
-      reward: { amount: 750, token: 'USDC', usd: 750 },
-      prizes: [300, 250, 200],
-      submissions: 143,
-      deadline: '2026-09-21',
-      status: 'open',
-      region: 'Global',
-      difficulty: 'beginner',
-      estimatedHours: 3,
-      tags: ['twitter-thread', 'defi', 'crowded', 'closing-soon', 'low-effort']
-    },
-    {
-      id: 'l26',
-      title: "Creator Program: Tell the Story That Brings Thailand's Next Talent to Solana",
-      slug: 'creator-program-thailand-next-talent-to-solana',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Superteam Thailand', handle: '@SuperteamTH', verified: true },
-      type: 'bounty',
-      skill: 'content',
-      reward: { amount: 2000, token: 'USDG', usd: 2000 },
-      prizes: [500, 500, 350, 350, 300],
-      submissions: 118,
-      deadline: '2026-09-01',
-      status: 'completed',
-      region: 'Thailand',
-      difficulty: 'beginner',
-      estimatedHours: 8,
-      tags: ['creator-program', 'storytelling', 'thai', 'many-winners', 'crowded']
-    },
-    {
-      id: 'l27',
-      title: 'Build a Jupiter Perps Analytics Dashboard',
-      slug: 'build-a-jupiter-perps-analytics-dashboard',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Jupiter', handle: '@JupiterExchange', verified: true },
-      type: 'bounty',
-      skill: 'development',
-      reward: { amount: 5000, token: 'USDC', usd: 5000 },
-      prizes: [3000, 1500, 500],
-      submissions: 8,
-      deadline: '2026-10-17',
-      status: 'open',
-      region: 'Global',
-      difficulty: 'advanced',
-      estimatedHours: 48,
-      tags: ['defi', 'dashboard', 'typescript', 'data', 'thin-competition']
-    },
-    {
-      id: 'l28',
-      title: 'Superteam Vietnam: Host a Monthly Builder Meetup',
-      slug: 'superteam-vietnam-host-monthly-builder-meetup',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Superteam Vietnam', handle: '@superteamvn', verified: true },
-      type: 'project',
-      skill: 'community',
-      reward: { amount: 1200, token: 'USDC', usd: 1200 },
-      prizes: [1200],
-      submissions: 24,
-      deadline: '2026-10-10',
-      status: 'open',
-      region: 'Vietnam',
-      difficulty: 'intermediate',
-      estimatedHours: 30,
-      tags: ['events', 'irl', 'community', 'one-winner', 'apply-dont-build']
-    },
-    {
-      id: 'l29',
-      title: 'Superteam India: Freelance Growth Lead (3-Month Engagement)',
-      slug: 'superteam-india-freelance-growth-lead',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Superteam India', handle: '@SuperteamIN', verified: true },
-      type: 'project',
-      skill: 'growth',
-      reward: { amount: 3000, token: 'USDC', usd: 3000 },
-      prizes: [3000],
-      submissions: 37,
-      deadline: '2026-09-29',
-      status: 'open',
-      region: 'India',
-      difficulty: 'intermediate',
-      estimatedHours: 60,
-      tags: ['freelance', 'growth', 'retainer', 'one-winner', 'apply-dont-build']
-    },
-    {
-      id: 'l30',
-      title: 'Superteam Nigeria Campus Ambassador Design Kit',
-      slug: 'superteam-nigeria-campus-ambassador-design-kit',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Superteam Nigeria', handle: '@superteamng', verified: true },
-      type: 'bounty',
-      skill: 'design',
-      reward: { amount: 1000, token: 'USDC', usd: 1000 },
-      prizes: [400, 300, 200, 100],
-      submissions: 205,
-      deadline: '2026-09-26',
-      status: 'open',
-      region: 'Nigeria',
-      difficulty: 'beginner',
-      estimatedHours: 6,
-      tags: ['branding', 'poster', 'figma', 'campus', 'crowded']
-    },
-    {
       id: 'l31',
       title: 'Agentic Engineering Grant: Ideas → Prompt → Prod',
       slug: 'agentic-engineering-grants',
       url: 'https://superteam.fun/earn/grants/agentic-engineering/',
-      sponsor: { name: 'Superteam', handle: '@SuperteamDAO', verified: true },
+      sponsor: { name: 'Superteam', handle: '@SuperteamDAO' },
       type: 'grant',
       skill: 'development',
       reward: { amount: 10000, token: 'USDC', usd: 10000 },
@@ -672,65 +589,11 @@
       tags: ['grant', 'ai-agents', 'kyc-required', '50-percent-upfront', 'no-deadline-race']
     },
     {
-      id: 'l32',
-      title: 'Superteam Australia | Website Design & Build Challenge',
-      slug: 'superteam-australia-website-design-and-build-challenge',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Superteam Australia', handle: '@SuperteamAU', verified: true },
-      type: 'bounty',
-      skill: 'design',
-      reward: { amount: 3000, token: 'USDG', usd: 3000 },
-      prizes: [2000, 750, 250],
-      submissions: 47,
-      deadline: '2026-08-28',
-      status: 'completed',
-      region: 'Australia',
-      difficulty: 'intermediate',
-      estimatedHours: 28,
-      tags: ['web-design', 'frontend', 'figma', 'real-podium']
-    },
-    {
-      id: 'l33',
-      title: 'Instagrant: Ship Something on Solana',
-      slug: 'instagrant-ship-something-on-solana',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Superteam', handle: '@SuperteamDAO', verified: true },
-      type: 'grant',
-      skill: 'other',
-      reward: { amount: 5000, token: 'USDC', usd: 5000 },
-      prizes: [],
-      submissions: 62,
-      deadline: '2026-11-14',
-      status: 'open',
-      region: 'Global',
-      difficulty: 'intermediate',
-      estimatedHours: 40,
-      tags: ['grant', 'funding', 'kyc-required', 'no-deadline-race']
-    },
-    {
-      id: 'l34',
-      title: 'Superteam Canada: Rust Workshop Recap Write-Up',
-      slug: 'superteam-canada-rust-workshop-recap-write-up',
-      url: 'https://superteam.fun/earn/all',
-      sponsor: { name: 'Superteam Canada', handle: '@SuperteamCAN', verified: true },
-      type: 'bounty',
-      skill: 'content',
-      reward: { amount: 750, token: 'USDG', usd: 750 },
-      prizes: [350, 250, 150],
-      submissions: 89,
-      deadline: '2026-09-22',
-      status: 'open',
-      region: 'Canada',
-      difficulty: 'beginner',
-      estimatedHours: 4,
-      tags: ['writing', 'recap', 'rust', 'workshop', 'closing-soon']
-    },
-    {
       id: 'l35',
       title: 'Beginner Developer Challenge: Automated Rent-Reclaim Bot for Kora Operators',
       slug: 'beginner-developer-challenge-automated-rent-reclaim-bot-for-kora-operators',
       url: 'https://superteam.fun/earn/listing/beginner-developer-challenge-automated-rent-reclaim-bot-for-kora-operators',
-      sponsor: { name: 'Kora', handle: '@kora', verified: true },
+      sponsor: { name: 'Kora', handle: '@kora' },
       type: 'bounty',
       skill: 'development',
       reward: { amount: 1000, token: 'USDC', usd: 1000 },
@@ -752,23 +615,40 @@
     sponsors: 2710
   };
 
+  /*
+   * sourceNotes is READER-FACING and bilingual: app.js renders it in the footer. Every number
+   * the hero shows is qualified here, in the language the reader is reading. If you add a
+   * statistic to the page, qualify it here in BOTH locales or do not show it.
+   */
   var META = {
     generatedAt: GENERATED_AT,
-    sourceNotes: "totalPaidUsd = the 'Total Value Earned' counter rendered on " +
-      'https://superteam.fun/earn/bounties (15,922,040 USD), captured 2026-09-19. ' +
-      "talent = the '210,000+ top-tier talent' figure in the Become a Sponsor block on " +
-      'https://superteam.fun/earn/ — a marketing claim, not audited. ' +
-      "sponsors = the 'Join 2,710+ others' figure in that same block. " +
-      'listingsLive = 35, the number of rows in THIS seed dataset, NOT a scraped count of ' +
-      'currently-open listings on Earn; do not render it as a platform statistic. ' +
-      "A third-party page (gigs.sh) claims '$1.7M+ distributed' and a Superteam India post " +
-      "(Jan 2026) claims '150,000+ users' — both conflict with the on-site figures above and " +
-      'were not used.',
+    sourceNotes: {
+      th: 'ที่มาของตัวเลข: ยอดจ่ายสะสม 15,922,040 ดอลลาร์ คือตัวเลข “Total Value Earned” ที่แสดงบน ' +
+        'superteam.fun/earn/bounties เก็บเมื่อ 2026-09-19 · ตัวเลขผู้สร้าง 210,000+ และสปอนเซอร์ 2,710+ ' +
+        'มาจากกล่องชวนเป็นสปอนเซอร์บน superteam.fun/earn — เป็นคำโฆษณาที่ Superteam ประกาศเอง ' +
+        'ไม่มีใครตรวจสอบ และไม่ได้แปลว่ามีคนได้เงินเท่านั้น · ' +
+        'จำนวนงานที่หน้านี้นับได้ เป็นจำนวนแถวในสแนปช็อตชุดนี้เท่านั้น ไม่ใช่จำนวนงานที่เปิดรับจริงบน Earn ' +
+        'ซึ่งมีมากกว่านี้มาก · ' +
+        'ข้อมูลรายงาน (จำนวนคนส่ง เงินรางวัล สถานะ) เก็บด้วยมือเมื่อ 2026-09-19 และเก่าลงทุกวัน ' +
+        'กดเข้าไปดูหน้าประกาศจริงก่อนตัดสินใจลงแรงเสมอ · ' +
+        'หน้านี้ไม่ได้ตรวจสอบสถานะ “sponsor ยืนยันแล้ว” ของ Earn จึงไม่แสดงเครื่องหมายรับรองใด ๆ',
+      en: 'Where these numbers come from: the 15,922,040 USD lifetime payout is the ' +
+        '"Total Value Earned" counter rendered on superteam.fun/earn/bounties, captured ' +
+        '2026-09-19. The 210,000+ builders and 2,710+ sponsors figures come from the ' +
+        '"Become a Sponsor" block on superteam.fun/earn — they are Superteam\'s own marketing ' +
+        'claims, not audited, and they are counts of sign-ups, not of people who got paid. ' +
+        'The listing count on this page is the number of rows in this snapshot, NOT a count of ' +
+        'what is currently open on Earn, which is far larger. ' +
+        'Listing fields (submissions, prize pools, status) were captured by hand on 2026-09-19 ' +
+        'and go stale daily — open the real listing before you spend hours on it. ' +
+        'This page does not check Earn\'s own sponsor-verification state, so it shows no ' +
+        'verification badge of any kind.'
+    },
     liveApi: 'Superteam Earn publishes no documented public API. EarnLive.fetchListings targets an ' +
       'undocumented endpoint, is expected to fail on file:// and under CORS, and always resolves ' +
       'to { ok, listings, error } so the seed data stays on screen.',
-    linkingRule: 'Always read listing.url. Nine modelled rows carry invented slugs and point at ' +
-      'https://superteam.fun/earn/all on purpose, so a URL rebuilt from listing.slug would 404.'
+    linkingRule: 'Always read listing.url rather than rebuilding one from listing.slug: the live ' +
+      'normaliser and the seed may disagree about how a slug maps to a URL.'
   };
 
   /* ------------------------------------------------- live payload handling */
@@ -961,8 +841,7 @@
       url: 'https://superteam.fun/earn/listing/' + slug,
       sponsor: {
         name: toText(sponsorRaw.name) || 'Unknown sponsor',
-        handle: handle || '',
-        verified: sponsorRaw.isVerified === true || sponsorRaw.verified === true
+        handle: handle || ''
       },
       type: type,
       skill: skill,
@@ -1155,13 +1034,23 @@
   /** Seed-only consistency on top of the shape audit: size floor + region-filter coverage. */
   function auditSeed() {
     var problems = audit(LISTINGS);
-    if (LISTINGS.length < 30) {
-      problems.push('seed holds only ' + LISTINGS.length + ' listings (30 minimum)');
+    if (LISTINGS.length < 15) {
+      problems.push('seed holds only ' + LISTINGS.length + ' listings (15 minimum)');
     }
+    var used = {};
     LISTINGS.forEach(function (listing) {
+      used[listing.region] = true;
       if (REGIONS.indexOf(listing.region) < 0) {
         problems.push(listing.id + ': region "' + listing.region + '" is missing from EARN_DATA.regions, ' +
           'so the region filter would hide it');
+      }
+    });
+    /* The reverse direction matters too: a region no listing uses is a filter option that is
+       guaranteed to return an empty board, which reads as a broken app. */
+    REGIONS.forEach(function (region) {
+      if (!used[region]) {
+        problems.push('EARN_DATA.regions lists "' + region + '", which no listing uses, ' +
+          'so selecting it would always return zero rows');
       }
     });
     return problems;

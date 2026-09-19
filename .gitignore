@@ -14,3 +14,11 @@ Thumbs.db
 # Node (the project itself is zero-dependency; this guards scratch work)
 node_modules/
 npm-debug.log*
+
+# Sidecars of the credential file — these contain the SAME cleartext API key.
+# store.js writes `<file>.corrupt-<ts>` when it finds a damaged state file, and
+# `..earn-agent.json.tmp-<pid>-<ts>` during an atomic save (left behind if the
+# process dies mid-write). Neither was matched by the `agent/.earn-agent.json`
+# line above, so a `git add agent/` would have committed a live key.
+agent/.earn-agent.json.*
+agent/..earn-agent.json.tmp-*
