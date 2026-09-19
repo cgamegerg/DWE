@@ -1,0 +1,16 @@
+# Superteam Earn agent toolkit — NEVER commit live credentials
+agent/.earn-agent.json
+agent/drafts/
+*.key
+*.pem
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Node (the project itself is zero-dependency; this guards scratch work)
+node_modules/
+npm-debug.log*
