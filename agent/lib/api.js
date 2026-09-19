@@ -504,7 +504,23 @@ export function createClient(options = {}) {
       });
     }
 
-    const text = await readBodyCapped(res, maxResponseBytes);
+    // A connection dropped MID-BODY (ECONNRESET, "terminated") rejects here, not
+    // in the fetch above, and used to escape as a raw TypeError with no `code`
+    // and no `status`. Callers that branch on `instanceof ApiError` then read a
+    // POST whose outcome is genuinely unknown as "definitely nothing happened".
+    // Every transport failure leaves this function as an ApiError, status 0.
+    let text;
+    try {
+      text = await readBodyCapped(res, maxResponseBytes);
+    } catch (err) {
+      if (err instanceof ApiError) throw err; // BODY_TOO_LARGE, already typed
+      throw new ApiError(
+        `Connection dropped while reading the response body: ${
+          err && err.message ? err.message : String(err)
+        }`,
+        { status: 0, code: 'NETWORK', endpoint: endpointLabel, cause: err },
+      );
+    }
     const body = parseMaybeJson(text);
     return { status: res.status, ok: res.status >= 200 && res.status < 300, body, res };
   }

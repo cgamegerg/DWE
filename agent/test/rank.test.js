@@ -883,7 +883,9 @@ const GOOD_OTHER_INFO = [
 function completeDraft(over) {
   return Object.assign({
     listingId: 'lst_abc123',
-    link: 'https://earn-rank.example.com',
+    // Not *.example.com: the gate now refuses IANA-reserved placeholder domains,
+    // because nobody can demo on one and a judge cannot open it.
+    link: 'https://earn-rank.pages.dev',
     tweet: '',
     otherInfo: GOOD_OTHER_INFO,
     ask: null,
