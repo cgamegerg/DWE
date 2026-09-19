@@ -1,0 +1,8 @@
+{
+  "name": "earn-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency CLI for the Superteam Earn agent API. Node 18+ built-ins only.",
+  "engines": { "node": ">=18.0.0" }
+}
