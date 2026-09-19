@@ -161,8 +161,15 @@ function safe(value, fallback) {
 }
 
 function round(value, places) {
+  var v = safe(value, 0);
   var f = Math.pow(10, places);
-  return Math.round(safe(value, 0) * f) / f;
+  var r = Math.round(v * f) / f;
+  // `v * f` overflows to Infinity for a FINITE v near Number.MAX_VALUE, which
+  // turned this last line of defence into the one place in the file that could
+  // manufacture an Infinity out of a finite input (a listing with
+  // rewardUsd: 1e308 produced inputs.pool = Infinity). Above 2^53 the decimal
+  // places carry no information anyway, so hand back the finite value unrounded.
+  return isFinite(r) ? r : v;
 }
 
 function obj(value) {

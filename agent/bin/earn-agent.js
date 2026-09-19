@@ -177,7 +177,13 @@ const MSG = {
     'reg.needName.next': 'ใส่ --name "ชื่อ" หรือรันในเทอร์มินัลแบบโต้ตอบ',
     'reg.prompt': 'ตั้งชื่อ agent (2-80 ตัวอักษร): ',
     'reg.ok': 'ลงทะเบียน agent สำเร็จ',
-    'reg.saved': 'บันทึกคีย์ไว้ที่ {path} (สิทธิ์ 0600, อยู่ใน .gitignore แล้ว)',
+    'reg.saved': 'บันทึกคีย์ไว้ที่ {path}',
+    'reg.modeOk': 'สิทธิ์ไฟล์ {mode} — เจ้าของอ่านได้คนเดียว (ตรวจสอบแล้ว)',
+    'reg.modeBad': 'สิทธิ์ไฟล์เป็น {mode} ไม่ใช่ 600 — รัน: chmod 600 "{path}"',
+    'reg.gitIgnored': 'อยู่ใน .gitignore ของ repo ที่ {repo} แล้ว (ตรวจสอบแล้ว)',
+    'reg.gitNoRepo': 'ไม่ได้อยู่ใน git repository จึงไม่มี .gitignore มาคุ้มครอง — ดูแลเองว่าจะไม่ถูก commit หรือ backup ไปที่อื่น',
+    'reg.gitExposed': 'ไฟล์นี้อยู่ใน git repository ที่ {repo} และ**ไม่มี**กฎใดใน .gitignore ครอบคลุม — `git add` จะ commit คีย์จริงขึ้นไป',
+    'reg.gitExposed.next': 'เพิ่มบรรทัดนี้ใน {repo}/.gitignore ก่อนทำ commit ใด ๆ: {rel}',
     'reg.keyNotice': 'คีย์ API จะไม่ถูกแสดงในที่ใดทั้งสิ้น — แสดงเป็น {masked} เท่านั้น',
 
     'claim.header': 'ขั้นตอนของมนุษย์ (agent ทำแทนไม่ได้)',
@@ -209,6 +215,7 @@ const MSG = {
     'list.source': 'แหล่งข้อมูล',
     'list.sourcePrimary': 'endpoint ของ agent โดยตรง (/api/agents/listings/live)',
     'list.sourceFallback': 'ทางสำรองสาธารณะ (/api/listings) — เพราะ endpoint หลักมีบั๊ก #1456',
+    'list.sourceNone': 'ไม่มีแหล่งข้อมูลใดให้ผลลัพธ์ (ลองครบทุกทางแล้ว แต่ไม่พบ listing ที่ใช้ได้)',
     'list.warnings': 'คำเตือนจากชั้นดึงข้อมูล',
     'list.empty': 'ไม่พบ listing ที่เปิดอยู่และ agent ส่งได้เลย',
     'list.count': 'พบ {n} รายการ',
@@ -278,7 +285,8 @@ const MSG = {
     'sub.yesWarn': 'ใช้ --yes: ข้ามการยืนยันของมนุษย์ตามที่ผู้ใช้สั่ง ความเสี่ยงอยู่ที่ผู้ใช้',
     'sub.lockBusy': 'ปฏิเสธ: มี earn-agent อีกตัวกำลังส่งผลงานอยู่',
     'sub.lockBusy.next': 'ห้ามรัน submit พร้อมกันหลายตัว รอให้ตัวเดิมเสร็จก่อนแล้วค่อยรันใหม่',
-    'sub.ambiguous': 'ผลลัพธ์ไม่แน่ชัด: คำขออาจถึงเซิร์ฟเวอร์แล้ว จองสิทธิ์ของ {id} ไว้ก่อน อย่าส่งซ้ำ ให้ตรวจบนเว็บแล้วใช้คำสั่ง update ถ้าจำเป็น',
+    'sub.ambiguous': 'ผลลัพธ์ไม่แน่ชัด: คำขออาจไปถึงเซิร์ฟเวอร์แล้ว สิทธิ์ของ {id} ยังถูกจองค้างไว้ ห้ามส่งซ้ำ ให้เปิดหน้า listing ตรวจเอง แล้วใช้คำสั่ง update ถ้ามันเข้าไปแล้วจริง',
+    'sub.unconfirmed': 'ส่งออกไปแล้ว แต่ยืนยันผลไม่ได้',
     'sub.ok': 'ส่งสำเร็จ',
     'sub.okUpdate': 'แก้ไขสำเร็จ',
     'sub.recorded': 'บันทึกลงสมุดคุมแล้ว — listing นี้จะส่งซ้ำไม่ได้อีก',
@@ -299,6 +307,8 @@ const MSG = {
     'prof.editHint': 'แก้ไข: node agent/bin/earn-agent.js profile set --hours-per-week 20 --skills "typescript,rust"',
     'prof.badEdge': 'ค่า --edge ต้องเป็นตัวเลขระหว่าง 0.5 ถึง 5',
     'prof.badNumber': 'ค่า {flag} ต้องเป็นตัวเลข',
+    'prof.outOfRange': 'ค่า {flag} ต้องอยู่ระหว่าง {min} ถึง {max} (ได้รับ {got})',
+    'prof.notInteger': 'ค่า {flag} ต้องเป็นจำนวนเต็ม (ได้รับ {got})',
     'prof.badBool': 'ค่า {flag} ต้องเป็น true หรือ false',
 
     'common.yes': 'ใช่',
@@ -367,7 +377,13 @@ const MSG = {
     'reg.needName.next': 'Pass --name "..." or run in an interactive terminal',
     'reg.prompt': 'Agent name (2-80 characters): ',
     'reg.ok': 'Agent registered',
-    'reg.saved': 'Key stored at {path} (mode 0600, already gitignored)',
+    'reg.saved': 'Key stored at {path}',
+    'reg.modeOk': 'mode {mode}, owner-only (verified on disk)',
+    'reg.modeBad': 'mode is {mode}, not 600 — run: chmod 600 "{path}"',
+    'reg.gitIgnored': 'covered by the .gitignore of the repo at {repo} (verified)',
+    'reg.gitNoRepo': 'not inside a git repository, so no .gitignore protects it — keep it out of backups and copies yourself',
+    'reg.gitExposed': 'this file is inside the git repository at {repo} and NOTHING in .gitignore covers it — a `git add` would commit your live API key',
+    'reg.gitExposed.next': 'Add this line to {repo}/.gitignore before you commit anything: {rel}',
     'reg.keyNotice': 'The API key is never printed anywhere — only as {masked}',
 
     'claim.header': 'The human steps (an agent cannot do these)',
@@ -399,6 +415,7 @@ const MSG = {
     'list.source': 'Source',
     'list.sourcePrimary': 'the agent endpoint itself (/api/agents/listings/live)',
     'list.sourceFallback': 'the public fallback (/api/listings) — because the primary hit bug #1456',
+    'list.sourceNone': 'no path produced results; every discovery tier was tried and none had an eligible listing',
     'list.warnings': 'Discovery-layer warnings',
     'list.empty': 'No open, agent-eligible listings found',
     'list.count': '{n} listing(s)',
@@ -469,6 +486,7 @@ const MSG = {
     'sub.lockBusy': 'REFUSED: another earn-agent process is already mid-submission',
     'sub.lockBusy.next': 'Submissions are serialised on purpose. Wait for that run to finish, then retry — do not run submits in parallel.',
     'sub.ambiguous': 'UNKNOWN OUTCOME: the request may have reached the server. The slot for {id} stays reserved. Do NOT re-submit — check the listing page, then use the update command if it went through.',
+    'sub.unconfirmed': 'Sent, but the result could NOT be confirmed',
     'sub.ok': 'Submitted',
     'sub.okUpdate': 'Updated',
     'sub.recorded': 'Recorded in the ledger — this listing can never be submitted to again',
@@ -489,6 +507,8 @@ const MSG = {
     'prof.editHint': 'Edit: node agent/bin/earn-agent.js profile set --hours-per-week 20 --skills "typescript,rust"',
     'prof.badEdge': '--edge must be a number between 0.5 and 5',
     'prof.badNumber': '{flag} must be a number',
+    'prof.outOfRange': '{flag} must be between {min} and {max} (got {got})',
+    'prof.notInteger': '{flag} must be a whole number (got {got})',
     'prof.badBool': '{flag} must be true or false',
 
     'common.yes': 'yes',
@@ -877,14 +897,36 @@ const COMMANDS = [
   'draft', 'submit', 'update', 'profile', 'claim', 'help',
 ];
 
+/**
+ * Every rejection here has to say WHICH rule the value broke. One shared
+ * "must be a number" for the not-a-number, out-of-range and non-integer cases
+ * told the operator that `--daily-cap 99` was not a number, which is false and
+ * sends them looking in the wrong place; the real rule is the 0-50 range.
+ *
+ * `integer: true` REFUSES a fractional value rather than truncating it. The
+ * only flag that uses it is --daily-cap, a submission rate limit: silently
+ * storing 2 when the operator typed 2.7 changes a safety control behind their
+ * back, and they would never see it unless they re-read `profile show`.
+ */
 function parseNumberFlag(flags, key, { min, max, integer } = {}) {
   const raw = flags[key];
   if (raw === undefined) return null;
-  const n = Number(raw);
-  if (!Number.isFinite(n)) throw new UserError(t('prof.badNumber', { flag: `--${key}` }));
-  if (min !== undefined && n < min) throw new UserError(t('prof.badNumber', { flag: `--${key}` }));
-  if (max !== undefined && n > max) throw new UserError(t('prof.badNumber', { flag: `--${key}` }));
-  return integer ? Math.trunc(n) : n;
+  const flag = `--${key}`;
+  const text = String(raw).trim();
+  const n = text === '' ? NaN : Number(text);
+  if (!Number.isFinite(n)) throw new UserError(t('prof.badNumber', { flag }));
+  if ((min !== undefined && n < min) || (max !== undefined && n > max)) {
+    throw new UserError(t('prof.outOfRange', {
+      flag,
+      min: min === undefined ? '-∞' : min,
+      max: max === undefined ? '∞' : max,
+      got: text,
+    }));
+  }
+  if (integer && !Number.isInteger(n)) {
+    throw new UserError(t('prof.notInteger', { flag, got: text }));
+  }
+  return n;
 }
 
 function parseBoolFlag(flags, key) {
@@ -1336,11 +1378,20 @@ async function fetchListings(client, flags) {
 }
 
 function sourceLabel(source) {
-  return source === 'agents-live' ? t('list.sourcePrimary') : t('list.sourceFallback');
+  if (source === 'agents-live') return t('list.sourcePrimary');
+  if (source === 'none') return t('list.sourceNone');
+  return t('list.sourceFallback');
+}
+
+/** Green only when the agent endpoint really answered; 'none' is not a source. */
+function sourceColor(source) {
+  if (source === 'agents-live') return green(source);
+  if (source === 'none') return grey(source);
+  return yellow(source);
 }
 
 function printSource(result) {
-  out(`  ${grey(`${t('list.source')}:`)} ${result.source === 'agents-live' ? green(result.source) : yellow(result.source)} ${grey(`— ${sourceLabel(result.source)}`)}`);
+  out(`  ${grey(`${t('list.source')}:`)} ${sourceColor(result.source)} ${grey(`— ${sourceLabel(result.source)}`)}`);
   if (result.warnings && result.warnings.length) {
     out('');
     out(`  ${yellow(t('list.warnings'))}:`);
@@ -1433,6 +1484,7 @@ async function cmdRegister(flags) {
       claimCode: result.claimCode,
       claimUrl: result.claimUrl,
       statePath: file,
+      keyProtection: store.configProtection(file),
     });
   }
 
@@ -1440,9 +1492,39 @@ async function cmdRegister(flags) {
   kv(t('who.name'), bold(next.agentName || '—'));
   kv(t('who.key'), `${store.maskKey(result.apiKey)} ${grey(`(${t('reg.keyNotice', { masked: store.maskKey(result.apiKey) })})`)}`);
   out('');
-  out(`  ${grey(t('reg.saved', { path: file }))}`);
+  printKeyProtection(file);
   printClaimBlock(next);
   return undefined;
+}
+
+/**
+ * Say what was actually CHECKED about the file holding the live API key.
+ *
+ * The old wording was a constant: "(mode 0600, already gitignored)". The mode
+ * half happened to be true; the gitignore half was an assumption about the
+ * default location that EARN_AGENT_HOME can invalidate — including by moving
+ * the key somewhere git IS watching, which is precisely when the operator
+ * needs to be told. store.configProtection() reads both facts off disk.
+ */
+function printKeyProtection(file) {
+  const prot = store.configProtection(file);
+  const modeText = prot.mode === null ? '?' : prot.mode.toString(8);
+
+  out(`  ${grey(t('reg.saved', { path: prot.path }))}`);
+  out(`  ${prot.modeOk
+    ? grey(t('reg.modeOk', { mode: modeText }))
+    : yellow(`! ${t('reg.modeBad', { mode: modeText, path: prot.path })}`)}`);
+
+  if (prot.gitStatus === 'ignored') {
+    out(`  ${grey(t('reg.gitIgnored', { repo: prot.repoRoot }))}`);
+  } else if (prot.gitStatus === 'no-repo') {
+    out(`  ${grey(t('reg.gitNoRepo'))}`);
+  } else {
+    const rel = path.relative(prot.repoRoot, prot.path).split(path.sep).join('/');
+    out('');
+    out(`  ${red('!')} ${bold(red(t('reg.gitExposed', { repo: prot.repoRoot })))}`);
+    out(`  ${yellow('→')} ${t('reg.gitExposed.next', { repo: prot.repoRoot, rel })}`);
+  }
 }
 
 function printClaimBlock(state) {
@@ -1493,6 +1575,7 @@ async function cmdWhoami(flags) {
       claimUrl: state.claimUrl,
       registeredAt: info.registeredAt,
       statePath: info.path,
+      keyProtection: store.configProtection(info.path),
       dailyCap: info.dailyCap,
       submittedToday: info.submittedToday,
       remainingToday: info.remainingToday,
@@ -1513,6 +1596,18 @@ async function cmdWhoami(flags) {
   kv(t('who.claim'), state.claimCode ? magenta(state.claimCode) : grey(t('common.none')));
   kv(t('who.registered'), info.registeredAt ? fmtDate(info.registeredAt) : grey(t('common.unknown')));
   kv(t('who.file'), grey(info.path));
+
+  // EARN_AGENT_HOME can be changed at any time after register, so re-check
+  // rather than trusting whatever was true the day the key was created.
+  const prot = store.configProtection(info.path);
+  if (prot.gitStatus === 'not-ignored') {
+    const rel = path.relative(prot.repoRoot, prot.path).split(path.sep).join('/');
+    out('');
+    out(`  ${red('!')} ${bold(red(t('reg.gitExposed', { repo: prot.repoRoot })))}`);
+    out(`  ${yellow('→')} ${t('reg.gitExposed.next', { repo: prot.repoRoot, rel })}`);
+  }
+  // Mode drift is not repeated here: store.load() already warned about it on
+  // stderr before this ran.
 
   heading(LANG === 'th' ? 'โควตาการส่ง' : 'Submission budget');
   kv(t('who.today'), `${bold(String(info.submittedToday))} / ${info.dailyCap}`);
@@ -2164,27 +2259,36 @@ async function cmdSubmit(flags, positional, mode) {
   const after = store.load();
   const remaining = store.remainingToday(after);
 
+  // A 2xx we could not read as a submission row is not proof of anything. Say so
+  // loudly rather than printing a green "Submitted" the tool cannot stand behind.
+  const unverified = result.unverified === true;
+
   if (flags.json) {
     emitJson({
       ok: true,
       command: mode,
+      unverified,
       listingId: listing.id,
       submissionId: result.submission.id,
       status: result.submission.status,
       remainingToday: remaining,
       gateWarnings: gate.warnings,
+      responseWarnings: Array.isArray(result.warnings) ? result.warnings : [],
     });
-    return 0;
+    return unverified ? 2 : 0;
   }
 
-  heading(mode === 'update' ? t('sub.okUpdate') : t('sub.ok'));
+  if (unverified) {
+    for (const w of (result.warnings || [])) warnOut(`${yellow('!')} ${w}`);
+  }
+  heading(unverified ? t('sub.unconfirmed') : (mode === 'update' ? t('sub.okUpdate') : t('sub.ok')));
   kv('submissionId', result.submission.id || grey(t('common.unknown')));
   kv(t('common.status'), result.submission.status || grey(t('common.unknown')));
   kv(t('common.link'), payload.link);
   out('');
-  out(`  ${green('✓')} ${t('sub.recorded')}`);
+  out(`  ${unverified ? yellow('?') : green('✓')} ${t('sub.recorded')}`);
   out(`  ${grey(t('sub.remaining', { n: remaining }))}`);
-  return 0;
+  return unverified ? 2 : 0;
 }
 
 async function cmdProfile(flags, positional) {

@@ -360,8 +360,12 @@ export function normaliseListing(raw, opts = {}) {
       id,
       title,
       slug,
-      // ASSUMED: public listing permalink shape. Null when we have no slug.
-      url: slug ? `${base}/listing/${slug}` : null,
+      // VERIFIED against SuperteamDAO/earn@7bf213b8: the public listing page is
+      // /earn/listing/{slug} (src/pages/earn/listing/[slug]/index.tsx), which is
+      // also what src/app/sitemap.ts and src/app/api/spam-dispute/route.ts build.
+      // next.config.ts declares no redirect from /listing/* , so the shorter form
+      // is a 404. Null when we have no slug.
+      url: slug ? `${base}/earn/listing/${slug}` : null,
       sponsor: sponsorObj ? toCleanString(sponsorObj.name) : null,
       type: type ?? null,
       skill: normaliseSkill(raw.skills),
@@ -588,8 +592,14 @@ export function createClient(options = {}) {
         );
       } catch (err) {
         lastError = err;
+        // Some failures are deterministic: the server will answer the same way
+        // next time. Re-requesting an over-cap body just pulls the same
+        // multi-megabyte payload again and burns the rate-limit window for
+        // nothing (the 8MB cap fired three times before falling back).
+        const deterministic = err instanceof ApiError
+          && (err.code === 'BODY_TOO_LARGE' || err.code === 'BAD_FETCH_IMPL');
         // Transport-level failure. Retry only if this GET has budget left.
-        if (retriable && i < attempts - 1) {
+        if (retriable && !deterministic && i < attempts - 1) {
           await sleep(retryBaseMs * 2 ** i);
           continue;
         }
@@ -778,7 +788,14 @@ export function createClient(options = {}) {
 
   /**
    * @param {{take?:number, crossCheck?:boolean, now?:number}} [opts]
-   * @returns {Promise<{listings: Listing[], source:'agents-live'|'fallback-filter', warnings:string[]}>}
+   * @returns {Promise<{listings: Listing[], source:'agents-live'|'fallback-filter'|'none',
+   *                    warnings:string[]}>}
+   *
+   * `source` names the path the RESULTS came from, so it only has a meaning
+   * when there are results. When every tier has been walked and none of them
+   * produced an eligible listing, the answer is 'none': claiming 'agents-live'
+   * there printed "Source: the agent endpoint itself" directly above warnings
+   * saying the agent endpoint had failed and three fallbacks had been tried.
    */
   async function liveListings(opts = {}) {
     const requested = toFiniteNumber(opts.take) ?? 20;
@@ -898,8 +915,11 @@ export function createClient(options = {}) {
       throw lastErr;
     }
 
+    // Every tier was walked and none of them yielded an eligible listing.
+    // There is no source to name, and naming either endpoint here would be a
+    // false provenance claim.
     warnings.push('No agent-eligible open listings found on any discovery path.');
-    return { listings: [], source: primary === null ? 'fallback-filter' : 'agents-live', warnings };
+    return { listings: [], source: 'none', warnings };
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1036,10 +1056,31 @@ export function createClient(options = {}) {
     });
 
     const row = result.body && typeof result.body === 'object' ? result.body : {};
+    const id = toCleanString(row.id);
+
+    // A 2xx whose body we could not read as a submission row is NOT proof the
+    // submission exists — an intercepting proxy or a CDN error page can answer
+    // 200 with HTML. The ledger row still stands (conservative: never re-create
+    // a create we cannot rule out), but the caller must not print a plain
+    // "Submitted". `unverified` is that signal.
+    const unverified = id === null;
+    const warnings = [];
+    if (unverified) {
+      warnings.push(
+        `${endpoint} answered HTTP ${result.status} but the body carried no submission id` +
+          `${typeof row._raw === 'string' ? ' (the body was not JSON)' : ''}. ` +
+          'The submission was NOT confirmed. Open the listing page and check before doing anything ' +
+          'else; if it did go through, the only legal follow-up is the update command.',
+      );
+    }
+
     return {
       ok: true,
+      unverified,
+      warnings,
+      status: result.status,
       submission: {
-        id: toCleanString(row.id),
+        id,
         status: toCleanString(row.status),
         label: toCleanString(row.label),
         listingId: toCleanString(row.listingId) ?? body.listingId,

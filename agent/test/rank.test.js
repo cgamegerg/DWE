@@ -964,6 +964,45 @@ test('qualityGate passes a complete draft at 13/13', () => {
   assert.equal(res.itemsPassed, 13);
 });
 
+test('qualityGate refuses padding that only LOOKS long enough', () => {
+  // Regression: these all passed 13/13 before the gate measured substance
+  // instead of String.length. Each one is an empty submission with padding.
+  const padding = [
+    ['400 spaces + the required heading',
+      { otherInfo: `${' '.repeat(400)}\nwhat it does not do yet\n` }, /actual content/],
+    ['500 newlines + the required heading',
+      { otherInfo: `${'\n'.repeat(500)}What it does not do yet` }, /actual content/],
+    ['one letter repeated past the minimum',
+      { otherInfo: `${'a'.repeat(450)} What it does not do yet` }, /distinct/],
+    ['an answer of one repeated letter',
+      { eligibilityAnswers: [
+        { question: 'Project Title', answer: 'a'.repeat(60) },
+        { question: 'What did you build?', answer: 'b'.repeat(60) },
+      ] }, /word/],
+  ];
+  for (const [label, over, re] of padding) {
+    const res = qualityGate(completeDraft(over), GATE_LISTING, { now: NOW });
+    assert.equal(res.pass, false, `padding case "${label}" must not pass`);
+    assert.ok(
+      res.failures.some((f) => re.test(f.message)),
+      `"${label}" failed for the wrong reason: ${res.failures.map((f) => f.code).join(',')}`,
+    );
+  }
+});
+
+test('qualityGate refuses an unopenable host and a stale sign-off', () => {
+  const cases = [
+    ['no TLD', { link: 'https://a' }, /no resolvable host/],
+    ['reserved placeholder domain', { link: 'https://demo.example.com/x' }, /placeholder domain/],
+    ['sign-off from last year', { humanSignOff: { approved: true, openedLink: true, by: 'op', at: NOW - 400 * 24 * 3600 * 1000 } }, /hours old/],
+  ];
+  for (const [label, over, re] of cases) {
+    const res = qualityGate(completeDraft(over), GATE_LISTING, { now: NOW });
+    assert.equal(res.pass, false, `"${label}" must not pass`);
+    assert.ok(res.failures.some((f) => re.test(f.message)), `"${label}" failed for the wrong reason`);
+  }
+});
+
 test('qualityGate blocks each refusal rule one at a time', () => {
   const cases = [
     ['localhost demo link', { link: 'http://localhost:3000' }, /localhost/],

@@ -541,7 +541,7 @@ await test('builds a full Listing from a realistic listingSelect row', async () 
   assert.equal(l.id, '11111111-2222-3333-4444-555555555555');
   assert.equal(l.title, 'Nosana Builders Challenge: Agents 102');
   assert.equal(l.slug, 'nosana-builders-challenge-agents-102');
-  assert.equal(l.url, 'https://superteam.fun/listing/nosana-builders-challenge-agents-102');
+  assert.equal(l.url, 'https://superteam.fun/earn/listing/nosana-builders-challenge-agents-102');
   assert.equal(l.sponsor, 'Nosana');
   assert.equal(l.type, 'bounty');
   assert.equal(l.agentAccess, 'AGENT_ALLOWED');
@@ -808,6 +808,101 @@ await test('describe() is printable and contains no secrets', async () => {
   assert.equal(d.apiKey, `sk_...${FAKE_KEY.slice(-4)}`);
   assert.ok(path.isAbsolute(d.path));
   assert.equal(typeof d.submittedToday, 'number');
+});
+
+
+section('store.js — reservations and the cross-process lock');
+
+await test('reserveSubmission refuses a duplicate and a cap overrun', async () => {
+  const fresh = store.defaultState();
+  fresh.apiKey = FAKE_KEY;
+  fresh.dailyCap = 2;
+  store.save(fresh);
+
+  const r1 = store.reserveSubmission({ listingId: 'lst-1', mode: 'create' });
+  assert.equal(r1.pending, true, 'a reservation starts pending');
+  assert.ok(r1.reservationId, 'a reservation carries an id');
+  assert.equal(store.hasSubmittedTo('lst-1'), true, 'a pending reservation already blocks a duplicate');
+
+  assert.throws(
+    () => store.reserveSubmission({ listingId: 'lst-1', mode: 'create' }),
+    (err) => err.name === 'LimitError' && err.code === 'DUPLICATE',
+    'a second create for the same listing must be refused',
+  );
+
+  store.reserveSubmission({ listingId: 'lst-2', mode: 'create' });
+  assert.throws(
+    () => store.reserveSubmission({ listingId: 'lst-3', mode: 'create' }),
+    (err) => err.name === 'LimitError' && err.code === 'DAILY_CAP',
+    'the daily cap must be enforced at reservation time',
+  );
+});
+
+await test('finalizeSubmission and releaseReservation close the loop', async () => {
+  const fresh = store.defaultState();
+  fresh.apiKey = FAKE_KEY;
+  store.save(fresh);
+
+  const r = store.reserveSubmission({ listingId: 'lst-fin', mode: 'create' });
+  const row = store.finalizeSubmission(r.reservationId, { submissionId: 'sub-99' });
+  assert.equal(row.pending, false);
+  assert.equal(row.submissionId, 'sub-99');
+  assert.equal(store.pendingSubmissions().length, 0);
+  assert.equal(store.submittedToday(), 1);
+
+  const r2 = store.reserveSubmission({ listingId: 'lst-rel', mode: 'create' });
+  assert.equal(store.submittedToday(), 2, 'a reservation consumes the cap immediately');
+  assert.equal(store.releaseReservation(r2.reservationId), true);
+  assert.equal(store.submittedToday(), 1, 'releasing a reservation gives the slot back');
+  assert.equal(store.hasSubmittedTo('lst-rel'), false);
+  assert.equal(store.releaseReservation(r2.reservationId), false, 'releasing twice is a no-op');
+});
+
+await test('an update needs a prior create and has its own ceiling', async () => {
+  const fresh = store.defaultState();
+  fresh.apiKey = FAKE_KEY;
+  fresh.dailyCap = 2;
+  store.save(fresh);
+
+  assert.throws(
+    () => store.reserveSubmission({ listingId: 'lst-u', mode: 'update' }),
+    (err) => err.name === 'LimitError' && err.code === 'NO_PRIOR',
+  );
+
+  const c = store.reserveSubmission({ listingId: 'lst-u', mode: 'create' });
+  store.finalizeSubmission(c.reservationId, { submissionId: 'sub-u' });
+
+  store.finalizeSubmission(store.reserveSubmission({ listingId: 'lst-u', mode: 'update' }).reservationId, {});
+  store.finalizeSubmission(store.reserveSubmission({ listingId: 'lst-u', mode: 'update' }).reservationId, {});
+  assert.equal(store.submittedToday(), 1, 'updates never consume the create budget');
+  assert.throws(
+    () => store.reserveSubmission({ listingId: 'lst-u', mode: 'update' }),
+    (err) => err.name === 'LimitError' && err.code === 'UPDATE_CAP',
+  );
+});
+
+await test('withLock serialises and refuses rather than racing', async () => {
+  const fresh = store.defaultState();
+  fresh.apiKey = FAKE_KEY;
+  store.save(fresh);
+
+  let inner = 'not run';
+  store.withLock(() => {
+    // Re-entering while held must refuse quickly instead of double-entering.
+    assert.throws(
+      () => store.withLock(() => { inner = 'RAN — the lock did not hold'; }, { waitMs: 50, staleMs: 60000 }),
+      (err) => err.name === 'LimitError' && err.code === 'LOCK_BUSY',
+    );
+  });
+  assert.equal(inner, 'not run');
+  assert.equal(fs.existsSync(store.lockPath()), false, 'the lock must be released afterwards');
+
+  // A stale lock left by a dead process is stolen, not honoured forever.
+  fs.writeFileSync(store.lockPath(), '999999\n', { mode: 0o600 });
+  const old = Date.now() - 10 * 60 * 1000;
+  fs.utimesSync(store.lockPath(), old / 1000, old / 1000);
+  assert.equal(store.withLock(() => 'acquired', { waitMs: 200 }), 'acquired');
+  assert.equal(fs.existsSync(store.lockPath()), false);
 });
 
 /* ========================================================================== */

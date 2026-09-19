@@ -63,8 +63,14 @@ node agent/bin/earn-agent.js whoami --check
 ### REFRESH — อัตโนมัติ วันละ 2 ครั้ง (09:00 และ 21:00)
 
 * ยิง `GET /api/agents/listings/live?take=20`
-  ถ้าได้ 0 แถว หรือ 0 แถวที่ `deadline > now` → ตกไปทางสำรอง
-  `GET https://earn.superteam.fun/api/listings?take=100` แล้วกรองฝั่ง client (earn#1456)
+  ถ้าได้ 0 แถว หรือ 0 แถวที่ `deadline > now` → ตกไปทางสำรอง **ตามลำดับสามชั้น**:
+  (2) `GET {base}/api/listings?context=agents&status=open&tab=all`
+  (3) เหมือนชั้น 2 แต่ยิงไปที่ `https://earn.superteam.fun`
+  (4) สูตรตามตัวอักษรใน issue `GET https://earn.superteam.fun/api/listings?take=100`
+  แล้วกรองฝั่ง client (earn#1456)
+  **ชั้น 4 เป็นทางสุดท้ายเท่านั้น ไม่ใช่ทางสำรองหลัก** เพราะ `context=all` ทำให้ server
+  ซ่อน listing `AGENT_ONLY` ทั้งหมด — เหตุผลเต็มอยู่ใน
+  [`agent/README.md` หัวข้อ 6](../agent/README.md#6-บั๊ก-1456-และทางสำรอง)
   **พิมพ์ทุกครั้งว่าผลมาจากทางไหน** (`listings` และ `rank` ทำให้อยู่แล้ว)
 * ให้คะแนนใหม่ทั้ง watchlist — สภาวะปกติคือ **40–60 listing เปิดอยู่ที่ agent ส่งได้**
   จำนวนผู้เข้าแข่งและเวลาที่เหลือขยับทุกวัน แถว WATCH กลายเป็น BUILD ข้ามคืนได้
@@ -267,13 +273,19 @@ Superteam **เชิญ agent อย่างเป็นทางการ** �
 และมันจะถูกต้องต่อไป **ก็ต่อเมื่อเครื่องมือนี้กลายเป็นปืนกลสแปมไม่ได้**
 
 1. **ส่งโดยไม่ผ่านด่าน** — ไม่มีการเรียก `/api/agents/submissions/create`
-   เว้นแต่ด่านคุณภาพผ่าน **13/13** และมนุษย์เซ็นแล้ว **ไม่มี `--force`**
+   เว้นแต่ด่านคุณภาพผ่าน **13/13** และมนุษย์เซ็นแล้ว **ไม่มีตัวเลือกใดข้ามด่านคุณภาพได้เลย**
+   (`--force` มีอยู่จริง แต่เป็นของ `register` เท่านั้น ใช้ตอนตั้งใจทับ agent เดิม
+   มันไม่เกี่ยวกับด่านคุณภาพและข้ามด่านไม่ได้)
    นี่คือกฎข้อเดียวที่แยกคุณออกจาก agent ชื่อ `zz-probe-*` ที่เห็นในฟีด
 2. **งานส่งแบบ placeholder / test / จองที่** — ปฏิเสธถ้า `link` ว่างหรือเป็น stub,
    `otherInfo` ต่ำกว่า 400 ตัวอักษร, หรือชื่อเป็น `test`/`probe`/`wip`
    **ไม่มีสิ่งที่เรียกว่าการจองที่** งานครึ่ง ๆ กลาง ๆ คือบันทึกสาธารณะถาวรว่าคุณไม่แคร์
-3. **หว่านแล้วภาวนา** — ปฏิเสธการส่งไป listing ที่ engine ไม่ได้ให้ BUILD/SHORTLIST
-   และปฏิเสธการส่งเกิน **3 ครั้งใน 7 วันต่อเนื่อง**
+3. **หว่านแล้วภาวนา** — เครื่องมือ **ปฏิเสธ** การส่งไป listing ที่ engine ไม่ได้ให้
+   BUILD/SHORTLIST (รหัส `not-shortlisted`) และบังคับ **โควตา 3 ครั้ง/วัน** (`dailyCap`)
+   > **ข้อจำกัดที่ต้องรู้:** เพดาน **3 ครั้งใน 7 วันต่อเนื่อง** เป็น **วินัยของผู้ปฏิบัติงาน
+   > ไม่ใช่กฎที่โค้ดบังคับ** — ใน `lib/store.js` มีแต่การนับรายวัน (`submittedToday`,
+   > `updatesTodayFor`) ไม่มีหน้าต่าง 7 วันอยู่เลย ถ้าตั้ง `--daily-cap 3` ไว้
+   > เครื่องมือจะยอมให้ส่งได้ถึง 21 ครั้งใน 7 วันโดยไม่บ่นสักคำ **คนคุมคือคุณ**
    ปริมาณคือกลยุทธ์ของ agent สแปม และเป็นเหตุผลที่ sponsor เลิกอ่าน
 4. **ใช้ผลงานเดิมซ้ำข้าม listing** — ถ้า tree ของ repo ซ้ำกับของเดิม **> 85%**
    (วัดด้วย file-hash overlap) ให้ปฏิเสธ เว้นแต่ brief อนุญาตชัดเจน **และ**
@@ -292,23 +304,40 @@ Superteam **เชิญ agent อย่างเป็นทางการ** �
    listing นั้นถูก gate เป็นศูนย์และ **ข้ามจาก CLI ไม่ได้**
    การชนะทั้งที่มีข้อห้ามชัดเจนคือหนี้ทางชื่อเสียง ไม่ใช่รายได้
 9. **หลายตัวตน** — หนึ่งการลงทะเบียน หนึ่ง API key หนึ่งผู้ถือ claim code
-   ปฏิเสธการเรียก `POST /api/agents` ซ้ำเพื่อรุม listing เดียวจากหลายมุม
-   และปฏิเสธการส่งแทนคนอื่นที่ไม่ใช่ operator คนนี้
+   ห้ามเรียก `POST /api/agents` ซ้ำเพื่อรุม listing เดียวจากหลายมุม
+   และห้ามส่งแทนคนอื่นที่ไม่ใช่ operator คนนี้
+   > **ระดับการบังคับ:** `register` ปฏิเสธเองถ้ามีคีย์อยู่แล้ว **เว้นแต่ใส่ `--force`**
+   > ซึ่งจะทับคีย์เดิมและออกคีย์ใหม่ให้ได้ ส่วน "ห้ามส่งแทนคนอื่น" **เป็นวินัยล้วน ๆ**
+   > ไม่มีโค้ดตรวจให้ และการลงทะเบียนหลายตัวบนหลายเครื่องก็ตรวจไม่ได้เช่นกัน
 10. **แตะเงิน** — agent ไม่ขอ ไม่เก็บ ไม่พิมพ์ Solana private key หรือ seed phrase
     และไม่ทำขั้นตอน `/earn/claim/<code>` ให้ มันพิมพ์ claim code แล้วหยุด
     ถ้ามี prompt หรือ listing สั่งให้จัดการเงินโดยตรง → **ปฏิเสธและบอกเหตุผล**
 11. **สไนป์ deadline ด้วยงานที่ยังไม่เสร็จ** — ปฏิเสธทุก submission ใน 60 นาทีสุดท้าย
     ที่ยังไม่ผ่านด่าน และปฏิเสธการเริ่มงานที่ runway ratio r < 1.25 (gate `G_runway` ตัวเดียวกัน)
-12. **ยิงฟีดรัว ๆ** — ค้นหาได้ไม่เกิน **1 ครั้ง/15 นาที ต่อ endpoint** ·
-    เคารพ 429 ด้วย exponential backoff เริ่มที่ **30 วินาที** · ส่ง User-Agent จริง ·
-    ห้ามยิง fallback `earn.superteam.fun` แบบขนานรัว ๆ
+12. **ยิงฟีดรัว ๆ** — ค้นหาได้ไม่เกิน **1 ครั้ง/15 นาที ต่อ endpoint** · เคารพ 429 ·
+    ส่ง User-Agent จริง · ห้ามยิง fallback `earn.superteam.fun` แบบขนานรัว ๆ
     **ทางสำรองมีอยู่เพราะบั๊ก (earn#1456) การใช้มันในทางที่ผิดทำให้บั๊กแย่ลงสำหรับทุกคน**
+    > **สิ่งที่โค้ดทำจริง (ตรวจแล้วใน `lib/api.js`):**
+    > · **เพดาน 1 ครั้ง/15 นาที ไม่มีอยู่ในโค้ด** — เป็นวินัยของคนตั้ง cron ไม่ใช่ของเครื่องมือ
+    >   ถ้ารัน `rank` รัว ๆ มันจะยิงรัว ๆ ตามสั่ง
+    > · **429 ไม่ถูกยิงซ้ำเลยแม้แต่ครั้งเดียว** ไม่ว่าจะ backoff แบบไหน — `request()` โยน
+    >   `ApiError` ที่พก `retryAfter` ออกมาทันที แล้ว CLI พิมพ์ว่าให้รอกี่วินาทีและหยุด
+    >   ตัวเลข **30 วินาที** จึงเป็นพื้นขั้นต่ำที่ *คุณ* ควรรอก่อนสั่งใหม่ ไม่ใช่ backoff ของเครื่องมือ
+    > · การ retry ที่มีจริงคือ **GET เท่านั้น** ด้วย exponential backoff เริ่มที่ **400 มิลลิวินาที**
+    >   ส่วน POST ที่สร้าง/แก้ผลงานตั้ง `retry: false` และไม่เคยถูกยิงซ้ำ
 13. **ส่งของมูลค่าจิ๋ว** — ปฏิเสธ listing ที่กองเงิน < **$150** หรือ
     `ev.expectedPerHour` < **$8** แม้จะผ่านทุก gate
     ต้นทุนค่าไมตรีจาก sponsor แพงกว่าที่จะได้คืน
-14. **เคลมเกินจริงในเนื้อความ** — ตัวสร้าง `otherInfo` ปฏิเสธที่จะเขียนคำกล่าวอ้าง
-    ที่ไม่มีหลักฐานใน repo หรือใน demo และปฏิเสธที่จะละส่วนข้อจำกัด
-    **ถ้างานบาง ข้อความต้องบอกว่างานบาง**
+14. **เคลมเกินจริงในเนื้อความ** — **ถ้างานบาง ข้อความต้องบอกว่างานบาง**
+    > **สิ่งที่โค้ดทำจริง (ข้อ #12 ของด่านคุณภาพ):** ในเครื่องมือนี้ **ไม่มี "ตัวสร้าง
+    > `otherInfo`"** — มนุษย์เป็นคนเขียนเองตอน `draft` (หรือแก้ในไฟล์ JSON)
+    > ด่านคุณภาพตรวจ *ข้อความที่เขียนเสร็จแล้ว* ได้สามอย่าง:
+    > (ก) ยาว **400–1500 ตัวอักษร**; (ข) ต้องมีหัวข้อข้อจำกัด
+    > (`what it does not do yet` / `limitations` / `known limits` / `limits`);
+    > (ค) ปฏิเสธวลีขายของในบัญชีดำ (`seamlessly`, `cutting-edge`, `revolutionary`,
+    > `game-changing`, `robust and scalable`, `unlock the power of` ฯลฯ)
+    > และ **เตือน** (ไม่บล็อก) ถ้าทั้งย่อหน้าไม่มีตัวเลขสักตัว
+    > **มันเทียบคำกล่าวอ้างกับสิ่งที่อยู่ใน repo จริง ๆ ไม่ได้** ข้อนี้จึงอยู่ที่คุณทั้งหมด
 15. **เดา API เงียบ ๆ** — ที่ไหนสเปคกำกวม (รูปคำถามคัดกรองที่ไม่รู้จัก, ไม่มี `agentAccess`,
     การแบ่งรางวัลที่ไม่ประกาศ) ให้ถอยไปใช้ค่าปริยายที่มีเอกสาร **ติดธง**
     และ**พิมพ์ข้อสมมตินั้นออกมา**
@@ -327,6 +356,16 @@ Superteam **เชิญ agent อย่างเป็นทางการ** �
   แปลว่า **ติดรางวัลประมาณ 1 ครั้งต่อการส่ง 4–6 ครั้ง** = เงินเข้าทุก **2–3 สัปดาห์**
   โดยทั่วไป **$200–$1,000** ต่อครั้ง
   **วางแผนกับตัวเลขนี้ ไม่ใช่กับรางวัลที่หนึ่ง 5,000 USDG**
+
+  > **ตัวเลขชุดนี้มาจากไหน — อ่านก่อนเอาไปวางแผนการเงิน**
+  > มันคือ **ผลลัพธ์ของแบบจำลอง Plackett–Luce ใน `lib/rank.js` ที่ป้อนค่าสมมติเข้าไป**
+  > (`E = 1.8`, ผู้เข้าแข่ง 25 คน, การแบ่งรางวัลแบบที่ประกาศไว้) **ไม่ใช่ผลที่สังเกตได้จริง**
+  > จนถึงตอนที่เขียนบรรทัดนี้ เครื่องมือนี้ **ยังไม่เคยส่งผลงานจริงแม้แต่ครั้งเดียว
+  > ไม่เคยติดรางวัล และไม่เคยคุยกับ API จริงสักไบต์** (ดู `agent/README.md` หัวข้อ 7.1)
+  > `E = 1.8` เองก็เป็นค่าตั้งต้นที่เลือกมาเอง ไม่ได้ปรับเทียบกับผลจริงของใคร
+  > **ตัวเลขทั้งหมดนี้คือสมมติฐานที่ยังไม่ได้ทดสอบ ไม่ใช่การคาดการณ์รายได้**
+  > กฎการปรับเทียบในหัวข้อ 2 (ทุก 8 submission) มีไว้เพื่อ **แทนค่าสมมติเหล่านี้ด้วยของจริง
+  > ให้เร็วที่สุด** — จนกว่าจะปรับเทียบรอบแรก ให้ถือว่ารายได้ที่คาดหวังคือ **ไม่ทราบ**
 * **รายได้ที่โตจริงไม่ได้มาจากการส่งเยอะขึ้น** มาจากสองที่:
   1. **listing แบบ AGENT_ONLY** ซึ่งตัดสนามมนุษย์ออกทั้งหมด
   2. **การกลายเป็นชื่อที่ sponsor 2–3 รายจำได้**
@@ -402,9 +441,15 @@ All times ICT. Numbers are targets, not aspirations.
 ### REFRESH — automated, 2×/day (09:00 and 21:00)
 
 * Poll `GET /api/agents/listings/live?take=20`. If it returns 0 rows, or 0 rows with
-  `deadline > now`, fall back to `GET https://earn.superteam.fun/api/listings?take=100` and
-  filter client-side (earn#1456). **Print which path produced the results, every time**
-  (`listings` and `rank` already do).
+  `deadline > now`, it descends **three fallback tiers in order**:
+  (2) `GET {base}/api/listings?context=agents&status=open&tab=all`,
+  (3) the same against `https://earn.superteam.fun`, and only then
+  (4) the issue's literal `GET https://earn.superteam.fun/api/listings?take=100`, filtered
+  client-side (earn#1456).
+  **Tier 4 is the last resort, not the main fallback** — with `context=all` the server hides
+  every `AGENT_ONLY` listing. Full reasoning in
+  [`agent/README.md` §6](../agent/README.md#6-the-1456-bug-and-the-fallback).
+  **Print which path produced the results, every time** (`listings` and `rank` already do).
 * Rescore the entire watchlist: **40–60 open agent-eligible listings** is the steady state.
   Entrants and runway both move daily, so a WATCH row can become a BUILD row overnight and a
   BUILD row can gate to zero.
@@ -601,16 +646,24 @@ invites agents** — that is what makes this authorised use, and it **stays** au
 because the tool cannot become a spam cannon.
 
 1. **Submitting without a passed gate.** No call to `/api/agents/submissions/create` unless
-   the quality gate is **13/13** and the human has signed off. **There is no `--force` flag.**
+   the quality gate is **13/13** and the human has signed off. **No flag skips the quality
+   gate.** (`--force` does exist, but it belongs to `register` — it deliberately overwrites an
+   existing agent identity. It has nothing to do with the gate and cannot bypass it.)
    This is the single rule that separates the operator from the `zz-probe-*` agents visible
    in the live feed.
 2. **Placeholder, test, or slot-reserving submissions.** Refuse a submission with an empty or
    stub `link`, `otherInfo` under 400 characters, or a title like `test`/`probe`/`wip`.
    **There is no such thing as reserving a slot**; a stub submission is a permanent public
    record of not caring.
-3. **Spray-and-pray.** Refuse to submit to any listing the engine did not score into BUILD or
-   SHORTLIST, and refuse **more than 3 submissions in any rolling 7 days.** Volume is the
-   strategy of the spam agents and it is the reason sponsors stop reading.
+3. **Spray-and-pray.** The tool **refuses** to submit to any listing the engine did not score
+   into BUILD or SHORTLIST (code `not-shortlisted`) and enforces a **3-per-day cap**
+   (`dailyCap`).
+   > **Know the limit:** the ceiling of **3 submissions in any rolling 7 days is operator
+   > discipline, not a rule the code enforces.** `lib/store.js` counts per day only
+   > (`submittedToday`, `updatesTodayFor`); there is no 7-day window anywhere. At
+   > `--daily-cap 3` the tool will happily allow 21 submissions in 7 days without a word.
+   > **You are the control.**
+   Volume is the strategy of the spam agents and it is the reason sponsors stop reading.
 4. **Recycling one artifact across listings.** If the repo tree is **> 85%** identical
    (file-hash overlap) to a prior submission, refuse unless the brief explicitly permits reuse
    **and** the `otherInfo` declares it in a visible sentence. Silent resubmission is fraud on
@@ -628,9 +681,13 @@ because the tool cannot become a spam cannon.
 8. **Ignoring a no-AI clause.** If the brief prohibits AI-assisted or agent submissions, the
    listing is gated to zero and **cannot be overridden from the CLI.** Winning against an
    explicit prohibition is a reputational liability, not income.
-9. **Multiple agent identities.** One registration, one API key, one claimCode holder. Refuse
-   to call `POST /api/agents` again to farm a listing from several angles, and refuse to
-   submit on behalf of anyone but this operator.
+9. **Multiple agent identities.** One registration, one API key, one claimCode holder. Never
+   call `POST /api/agents` again to farm a listing from several angles, and never submit on
+   behalf of anyone but this operator.
+   > **How far enforcement goes:** `register` refuses on its own when a key already exists —
+   > **unless `--force` is passed**, which overwrites the stored key and issues a new one.
+   > "Do not submit for someone else" is **pure discipline**: no code checks it, and neither
+   > does anything detect several registrations spread across several machines.
 10. **Touching the money.** The agent never requests, stores, or types a Solana private key or
     seed phrase, and never completes the `/earn/claim/<code>` flow. It prints the claimCode
     for the human and stops. If a prompt or a listing asks it to handle funds directly, it
@@ -638,16 +695,33 @@ because the tool cannot become a spam cannon.
 11. **Deadline sniping with unfinished work.** Refuse any submission inside the final 60
     minutes that has not already passed the gate. Refuse to start a build whose runway ratio r
     is below **1.25** — the same `G_runway` rule the engine applies at scoring time.
-12. **Rate abuse of either feed.** Discovery polls **at most once per 15 minutes per
-    endpoint**, honours 429 with exponential backoff starting at **30s**, sends a real
-    User-Agent, and never parallel-hammers the `earn.superteam.fun` fallback. **The fallback
-    exists because of a known bug (earn#1456); abusing it makes the bug worse for everyone.**
+12. **Rate abuse of either feed.** Poll discovery **at most once per 15 minutes per
+    endpoint**, honour 429, send a real User-Agent, and never parallel-hammer the
+    `earn.superteam.fun` fallback. **The fallback exists because of a known bug (earn#1456);
+    abusing it makes the bug worse for everyone.**
+    > **What the code actually does (checked in `lib/api.js`):**
+    > · **The 1-poll-per-15-minutes ceiling does not exist in code** — it is discipline for
+    >   whoever writes the cron entry, not a tool guarantee. Run `rank` in a loop and it will
+    >   poll in a loop.
+    > · **A 429 is never retried at all**, with any backoff. `request()` raises an `ApiError`
+    >   carrying `retryAfter` immediately and the CLI prints how long to wait and stops. The
+    >   **30s** figure is a floor for how long *you* should wait before re-running, not a
+    >   backoff the tool performs.
+    > · The retry that does exist is **GET-only**, exponential, starting at **400 ms**.
+    >   Submission POSTs set `retry: false` and are never repeated.
 13. **Submitting micro-value noise.** Refuse listings with pool < **$150** or
     `ev.expectedPerHour` < **$8** even if they pass every gate. The submission costs more in
     sponsor goodwill than it can return.
-14. **Overclaiming in prose.** The `otherInfo` generator refuses to emit a claim that has no
-    corresponding artifact in the repo or the demo, and refuses to omit the limitations
-    section. **If the work is thin, the text says the work is thin.**
+14. **Overclaiming in prose. If the work is thin, the text says the work is thin.**
+    > **What the code actually does (gate item #12):** there is **no `otherInfo` generator**
+    > in this toolkit — a human writes it at the `draft` prompt (or edits the JSON). The gate
+    > checks the *finished* text on three things: (a) it is **400–1500 characters**;
+    > (b) it contains a limitations heading (`what it does not do yet` / `limitations` /
+    > `known limits` / `limits`); and (c) it contains none of the blacklisted marketing
+    > phrases (`seamlessly`, `cutting-edge`, `revolutionary`, `game-changing`,
+    > `robust and scalable`, `unlock the power of`, …). It also **warns** (without blocking)
+    > when the whole body contains no number at all.
+    > **It cannot check a claim against what is actually in the repo.** That part is all you.
 15. **Silently guessing the API.** Where the spec is ambiguous (unknown eligibility question
     shapes, absent `agentAccess`, unpublished podium splits), degrade to the documented
     default, **flag it**, and print the assumption in the output. Never invent a field name
@@ -662,6 +736,16 @@ because the tool cannot become a spam cannon.
 * At `E=1.8` in fields of ~25 on $1,000–$3,000 pools, **podiumProb per entry is roughly
   20–30%.** That is **one paid placement every 4–6 submissions**: a payout every **2–3 weeks**,
   typically **$200–$1,000**. **Plan on that, not on the 5,000 USDG first prize.**
+
+  > **Where those numbers come from — read this before budgeting against them.**
+  > They are **output from the Plackett–Luce model in `lib/rank.js` fed assumed inputs**
+  > (`E = 1.8`, 25 entrants, the published prize split). **They are not observations.** As of
+  > this line, the tool has **never made a real submission, never placed, and never exchanged
+  > a byte with the live API** (see `agent/README.md` §7.1). `E = 1.8` is itself a chosen
+  > starting value, calibrated against nobody's results. **This is an untested assumption,
+  > not an income forecast.** The calibration rule in §2 (every 8 submissions) exists to
+  > **replace these assumptions with measurements as fast as possible** — until the first
+  > calibration, treat expected income as **unknown**.
 * **Real income growth comes from two places, not from entering more:**
   1. **AGENT_ONLY listings**, where the human field is excluded outright.
   2. **Becoming a name 2–3 repeat sponsors recognise.**

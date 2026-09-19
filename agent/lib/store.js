@@ -62,6 +62,212 @@ export function lockPath() {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Is the key file actually safe from git?                                     */
+/*                                                                             */
+/* The CLI used to tell the operator the key was "already gitignored" without  */
+/* ever checking. That is true for the default path and false the moment       */
+/* EARN_AGENT_HOME moves the file — including to somewhere git IS watching.    */
+/* A reassurance about a live credential has to be earned, so everything below */
+/* answers from the filesystem and defaults to "not protected" whenever it     */
+/* cannot prove otherwise. A false warning costs a second of the operator's    */
+/* attention; a false all-clear costs the key.                                 */
+/* -------------------------------------------------------------------------- */
+
+/** Nearest ancestor containing `.git` (a dir, or a file for worktrees). */
+export function findRepoRoot(startDir) {
+  let dir = path.resolve(startDir);
+  for (let i = 0; i < 64; i += 1) {
+    try {
+      if (fs.existsSync(path.join(dir, '.git'))) return dir;
+    } catch { /* unreadable: treat as not-a-repo and keep walking */ }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * Translate one .gitignore pattern into a matcher, or null if it uses a
+ * construct this subset does not implement (in which case the caller must
+ * treat the path as NOT ignored rather than guess).
+ *
+ * Implemented: `#` comments, `!` negation, `\` escapes, trailing `/`
+ * (directory-only), leading/embedded `/` (anchored), `*`, `?`, `**`, `[...]`.
+ */
+function compileIgnorePattern(line) {
+  let p = line;
+
+  // Trailing whitespace is stripped unless escaped.
+  p = p.replace(/(?<!\\)\s+$/, '');
+  if (p === '' || p.startsWith('#')) return null;
+
+  let negated = false;
+  if (p.startsWith('!')) {
+    negated = true;
+    p = p.slice(1);
+  } else if (p.startsWith('\\#') || p.startsWith('\\!')) {
+    p = p.slice(1);
+  }
+  if (p === '') return null;
+
+  let dirOnly = false;
+  if (p.endsWith('/')) {
+    dirOnly = true;
+    p = p.slice(0, -1);
+  }
+  if (p === '') return null;
+
+  // A slash anywhere left in the pattern anchors it to this .gitignore's dir.
+  const anchored = p.includes('/');
+  if (p.startsWith('/')) p = p.slice(1);
+
+  let re = '';
+  for (let i = 0; i < p.length; i += 1) {
+    const c = p[i];
+    if (c === '\\') {
+      const next = p[i + 1];
+      if (next === undefined) return null; // dangling escape: refuse to guess
+      re += next.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      i += 1;
+    } else if (c === '*') {
+      if (p[i + 1] === '*') {
+        // `**` — spans directory separators.
+        const beforeIsSep = i === 0 || p[i - 1] === '/';
+        const afterIsSep = p[i + 2] === '/';
+        if (beforeIsSep && afterIsSep) {
+          re += '(?:.*/)?';
+          i += 2; // consume the second * and the following /
+        } else {
+          re += '.*';
+          i += 1;
+        }
+      } else {
+        re += '[^/]*';
+      }
+    } else if (c === '?') {
+      re += '[^/]';
+    } else if (c === '[') {
+      const close = p.indexOf(']', i + 1);
+      if (close === -1) return null; // unterminated class: refuse to guess
+      let cls = p.slice(i + 1, close);
+      if (cls.startsWith('!')) cls = `^${cls.slice(1)}`;
+      re += `[${cls}]`;
+      i = close;
+    } else {
+      re += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+
+  let regex;
+  try {
+    regex = new RegExp(`^${re}$`);
+  } catch {
+    return null;
+  }
+  return { regex, negated, dirOnly, anchored };
+}
+
+/** Does one rule match exactly this path (never its ancestors)? */
+function matchesIgnorePattern(rule, scopedRel, isDir) {
+  if (rule.dirOnly && !isDir) return false;
+  if (rule.anchored) return rule.regex.test(scopedRel);
+  // Unanchored patterns match at any depth: the path, or any suffix of it
+  // starting at a `/` boundary.
+  const parts = scopedRel.split('/');
+  for (let k = 0; k < parts.length; k += 1) {
+    if (rule.regex.test(parts.slice(k).join('/'))) return true;
+  }
+  return false;
+}
+
+/**
+ * Last-match-wins over the .gitignore of the repo root and of every directory
+ * down to (but not including) this path — git's own precedence.
+ */
+function decideOnePath(root, rel, isDir) {
+  const segments = rel.split('/');
+  const dirs = [root];
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    dirs.push(path.join(dirs[dirs.length - 1], segments[i]));
+  }
+
+  let verdict = false;
+  for (const dir of dirs) {
+    let text;
+    try {
+      text = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+    } catch {
+      continue; // no .gitignore here, or unreadable
+    }
+    const scope = path.relative(root, dir).split(path.sep).join('/');
+    const scopedRel = scope === '' ? rel : rel.slice(scope.length + 1);
+    for (const line of text.split(/\r?\n/)) {
+      const rule = compileIgnorePattern(line);
+      if (!rule) continue;
+      if (matchesIgnorePattern(rule, scopedRel, isDir)) verdict = !rule.negated;
+    }
+  }
+  return verdict;
+}
+
+/**
+ * Conservative `git check-ignore`.
+ *
+ * Ancestors are resolved first and decisively: git does not let a `!` rule
+ * re-include a file whose parent directory is already excluded, so once an
+ * ancestor is ignored the walk stops there.
+ *
+ * @returns {boolean} true ONLY when a rule provably ignores the path.
+ */
+export function isIgnoredByGit(repoRoot, absPath) {
+  const root = path.resolve(repoRoot);
+  const target = path.resolve(absPath);
+  const rel = path.relative(root, target).split(path.sep).join('/');
+  if (rel === '' || rel.startsWith('../')) return false;
+
+  const segments = rel.split('/');
+  for (let i = 1; i < segments.length; i += 1) {
+    if (decideOnePath(root, segments.slice(0, i).join('/'), true)) return true;
+  }
+  return decideOnePath(root, rel, false);
+}
+
+/**
+ * Everything the CLI is allowed to claim about the state file, all of it read
+ * back off disk. `gitStatus` is one of:
+ *   'no-repo'     — the file is not inside any git working tree
+ *   'ignored'     — a .gitignore rule provably covers it
+ *   'not-ignored' — it IS inside a working tree and nothing ignores it (danger)
+ *
+ * @param {string} [file] defaults to configPath()
+ */
+export function configProtection(file) {
+  const target = path.resolve(file || configPath());
+  const out = {
+    path: target,
+    exists: false,
+    mode: null,
+    modeOk: false,
+    repoRoot: null,
+    gitStatus: 'no-repo',
+  };
+
+  try {
+    out.mode = fs.statSync(target).mode & 0o777;
+    out.exists = true;
+  } catch { /* the caller reports exists:false */ }
+  out.modeOk = out.mode === FILE_MODE;
+
+  const repoRoot = findRepoRoot(path.dirname(target));
+  if (repoRoot === null) return out;
+
+  out.repoRoot = repoRoot;
+  out.gitStatus = isIgnoredByGit(repoRoot, target) ? 'ignored' : 'not-ignored';
+  return out;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Masking                                                                     */
 /* -------------------------------------------------------------------------- */
 
@@ -633,6 +839,9 @@ export default {
   configPath,
   lockPath,
   agentDir,
+  configProtection,
+  isIgnoredByGit,
+  findRepoRoot,
   load,
   save,
   maskKey,
